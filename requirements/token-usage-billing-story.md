@@ -13,7 +13,6 @@ The LLM API platform charges customers based on token consumption. Customers hav
   * Prompt tokens (required, ≥ 0)
   * Completion tokens (required, ≥ 0)
 * Calculate bill using customer's monthly quota, current month usage, and overage rate.
-* Update customer's current month usage after billing.
 
 ## Scope Out
 * Customer CRUD operations.
@@ -41,12 +40,7 @@ The LLM API platform charges customers based on token consumption. Customers hav
    **When** submitting 50,000 tokens
    **Then** bill shows: 20,000 from quota, 30,000 overage, $0.60 charge.
 
-5. Update customer usage
-   **Given** bill calculated for 50,000 tokens
-   **When** bill is persisted
-   **Then** customer's current month usage increases by 50,000.
-
-6. Successful return
+5. Successful return
    **Given** valid request
    **When** bill is calculated
    **Then** return HTTP 201 with bill details including: bill ID, customer ID, total tokens, tokens from quota, overage tokens, total charge, and calculation timestamp.
