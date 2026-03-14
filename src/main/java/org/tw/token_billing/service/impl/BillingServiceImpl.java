@@ -1,0 +1,73 @@
+package org.tw.token_billing.service.impl;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.tw.token_billing.domain.Bill;
+import org.tw.token_billing.domain.CustomerSubscription;
+import org.tw.token_billing.domain.PricingPlan;
+import org.tw.token_billing.dto.UsageRequest;
+import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.NoActiveSubscriptionException;
+import org.tw.token_billing.repository.BillRepository;
+import org.tw.token_billing.repository.CustomerRepository;
+import org.tw.token_billing.repository.CustomerSubscriptionRepository;
+import org.tw.token_billing.service.BillingService;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class BillingServiceImpl implements BillingService {
+
+    private final CustomerRepository customerRepository;
+    private final CustomerSubscriptionRepository customerSubscriptionRepository;
+    private final BillRepository billRepository;
+
+    @Override
+    public Bill calculateBill(UsageRequest request) {
+        String customerId = request.getCustomerId();
+
+        customerRepository.findById(customerId)
+                .orElseThrow(() -> new CustomerNotFoundException(customerId));
+
+        LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
+
+        List<CustomerSubscription> activeSubscriptions =
+                customerSubscriptionRepository.findActiveSubscriptions(customerId, currentDate);
+
+        if (activeSubscriptions.isEmpty()) {
+            throw new NoActiveSubscriptionException(customerId);
+        }
+
+        CustomerSubscription subscription = activeSubscriptions.get(0);
+        PricingPlan plan = subscription.getPlan();
+
+        LocalDateTime monthStart = currentDate.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime monthEnd = currentDate.plusMonths(1).withDayOfMonth(1).atStartOfDay();
+
+        Integer currentMonthUsage = billRepository.sumIncludedTokensUsedForMonth(customerId, monthStart, monthEnd);
+        int remainingQuota = plan.getMonthlyQuota() - currentMonthUsage;
+
+        Bill bill = Bill.create(
+                customerId,
+                request.getPromptTokens(),
+                request.getCompletionTokens(),
+                remainingQuota,
+                plan.getOverageRatePer1k()
+        );
+
+        log.info("Calculated bill for customer {}: totalTokens={}, includedTokensUsed={}, overageTokens={}, totalCharge={}",
+                customerId, bill.getTotalTokens(), bill.getIncludedTokensUsed(),
+                bill.getOverageTokens(), bill.getTotalCharge());
+
+        return billRepository.save(bill);
+    }
+}
