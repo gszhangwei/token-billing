@@ -34,22 +34,9 @@ public class BillingServiceImpl implements BillingService {
     public Bill calculateBill(UsageRequest request) {
         String customerId = request.getCustomerId();
 
-        customerRepository.findById(customerId)
-                .orElseThrow(() -> new CustomerNotFoundException(customerId));
-
-        LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
-
-        CustomerSubscription subscription = customerSubscriptionRepository
-                .findActiveSubscription(customerId, currentDate)
-                .orElseThrow(() -> new NoActiveSubscriptionException(customerId));
-
-        PricingPlan plan = subscription.getPlan();
-
-        LocalDateTime monthStart = currentDate.withDayOfMonth(1).atStartOfDay();
-        LocalDateTime monthEnd = currentDate.plusMonths(1).withDayOfMonth(1).atStartOfDay();
-
-        Integer currentMonthUsage = billRepository.sumIncludedTokensUsedForMonth(customerId, monthStart, monthEnd);
-        int remainingQuota = plan.getMonthlyQuota() - currentMonthUsage;
+        validateCustomerExists(customerId);
+        PricingPlan plan = resolveActivePricingPlan(customerId);
+        int remainingQuota = calculateRemainingQuota(customerId, plan);
 
         Bill bill = Bill.create(
                 customerId,
@@ -64,5 +51,29 @@ public class BillingServiceImpl implements BillingService {
                 bill.getOverageTokens(), bill.getTotalCharge());
 
         return billRepository.save(bill);
+    }
+
+    private void validateCustomerExists(String customerId) {
+        customerRepository.findById(customerId)
+                .orElseThrow(() -> new CustomerNotFoundException(customerId));
+    }
+
+    private PricingPlan resolveActivePricingPlan(String customerId) {
+        LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
+
+        CustomerSubscription subscription = customerSubscriptionRepository
+                .findActiveSubscription(customerId, currentDate)
+                .orElseThrow(() -> new NoActiveSubscriptionException(customerId));
+
+        return subscription.getPlan();
+    }
+
+    private int calculateRemainingQuota(String customerId, PricingPlan plan) {
+        LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
+        LocalDateTime monthStart = currentDate.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime monthEnd = currentDate.plusMonths(1).withDayOfMonth(1).atStartOfDay();
+
+        Integer currentMonthUsage = billRepository.sumIncludedTokensUsedForMonth(customerId, monthStart, monthEnd);
+        return plan.getMonthlyQuota() - currentMonthUsage;
     }
 }

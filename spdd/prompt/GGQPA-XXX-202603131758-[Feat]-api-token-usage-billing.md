@@ -509,22 +509,35 @@ classDiagram
 4. Implements: `BillingService`
 5. Dependencies: `CustomerRepository`, `CustomerSubscriptionRepository`, `BillRepository` (all interfaces)
 6. Methods:
-   - `calculateBill(UsageRequest request)`: Bill
+   - `calculateBill(UsageRequest request)`: Bill (public)
      - Input Validation: Request is pre-validated by controller
-     - Business Logic:
-       1. Find customer by ID, throw CustomerNotFoundException if not found
-       2. Get current date (UTC)
-       3. Find active subscription for customer and current date
-       4. If no active subscription, throw NoActiveSubscriptionException
-       5. Get PricingPlan from subscription (domain entity)
-       6. Calculate month boundaries (first day 00:00:00 to first day of next month 00:00:00, UTC)
-       7. Query sum of includedTokensUsed for current month via BillRepository interface
-       8. Calculate remainingQuota = monthlyQuota - currentMonthUsage
-       9. Create Bill using Bill.create() with request data, remainingQuota, and overage rate
-       10. Save Bill via BillRepository interface
-       11. Return saved Bill (domain entity)
+     - Orchestration Logic:
+       1. Extract customerId from request
+       2. Call `validateCustomerExists(customerId)`
+       3. Call `resolveActivePricingPlan(customerId)` to get PricingPlan
+       4. Call `calculateRemainingQuota(customerId, plan)` to get remaining quota
+       5. Create Bill using `Bill.create()` with request data, remainingQuota, and overage rate
+       6. Log billing calculation result at INFO level
+       7. Save Bill via BillRepository interface and return saved Bill
      - Exception Handling: Let exceptions propagate to GlobalExceptionHandler
      - Return Value: Persisted Bill domain entity
+   - `validateCustomerExists(String customerId)`: void (private)
+     - Responsibility: Validate that customer exists in the system
+     - Logic: Find customer by ID via CustomerRepository, throw CustomerNotFoundException if not found
+   - `resolveActivePricingPlan(String customerId)`: PricingPlan (private)
+     - Responsibility: Resolve the active subscription and return its pricing plan
+     - Logic:
+       1. Get current date (UTC)
+       2. Find active subscription for customer and current date via CustomerSubscriptionRepository
+       3. If no active subscription, throw NoActiveSubscriptionException
+       4. Return PricingPlan from subscription
+   - `calculateRemainingQuota(String customerId, PricingPlan plan)`: int (private)
+     - Responsibility: Calculate remaining quota for the current billing month
+     - Logic:
+       1. Get current date (UTC)
+       2. Calculate month boundaries (first day 00:00:00 to first day of next month 00:00:00)
+       3. Query sum of includedTokensUsed for current month via BillRepository
+       4. Return monthlyQuota - currentMonthUsage
 
 ### Create Controller - UsageController
 
