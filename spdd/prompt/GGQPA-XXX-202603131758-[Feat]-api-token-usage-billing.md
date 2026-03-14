@@ -103,70 +103,175 @@ classDiagram
    - Structured ErrorResponse DTO for consistent client error format
    - Exception types: CustomerNotFoundException (404), NoActiveSubscriptionException (422), validation errors (400)
 
-5. **Data Access Pattern**:
-   - Spring Data JPA repositories for all entities
-   - Custom query method in BillRepository for current month usage aggregation
-   - Transactional service layer for billing calculation and persistence
+5. **Data Access Pattern** (Following Dependency Inversion):
+   - Repository interfaces define data-access contracts in the repository package
+   - Service layer depends only on repository interfaces (not implementations)
+   - Infrastructure layer provides JPA repository adapters implementing the interfaces
+   - Mappers convert between Domain entities and Persistence Objects (POs)
+   - Custom query method in BillRepository interface for current month usage aggregation
+   - Transactional service implementation for billing calculation and persistence
+
+6. **Architecture Pattern** (Three-Layer with Decoupled Models):
+   - Controller → Service Interface → Repository Interface (clean dependency flow)
+   - Service Implementation and Repository Adapter implementations provided separately
+   - Domain entities encapsulate business logic without infrastructure concerns
+   - Persistence Objects handle database mapping in the infrastructure layer
 
 ## Structure
 
+### Design Principles
+
+1. **Three-Layer Architecture**: Adopt a clean Controller → Service → Repository layering. Each layer has a single responsibility:
+   - Controllers handle HTTP concerns (request/response, validation, status codes)
+   - Services encapsulate business logic (billing calculation, quota management)
+   - Repositories abstract data access (persistence operations)
+
+2. **Decoupled Models**: Strictly separate the Domain Model from the Persistence Model:
+   - Domain layer encapsulates pure business logic with no infrastructure dependencies
+   - Infrastructure layer handles data storage by mapping Domain Entities to Persistence Objects (POs)
+   - Mappers convert between Domain and Persistence representations
+
+3. **Dependency Inversion Principle**: Both the Service Layer and Repository Layer adhere to DIP:
+   - Service Layer: Define Service interfaces that express business operations. Controllers depend only on these interfaces.
+   - Repository Layer: Define Repository interfaces that express data-access contracts. Services depend strictly on these interfaces, and the infrastructure layer provides concrete implementations.
+
 ### Inheritance Relationships
+
 1. `CustomerNotFoundException` extends `RuntimeException` for customer lookup failures
 2. `NoActiveSubscriptionException` extends `RuntimeException` for subscription resolution failures
-3. All entity classes are JPA `@Entity` annotated POJOs
-4. Request/Response DTOs are simple data carriers with validation annotations
+3. Domain entities are pure Java objects with business logic (no framework annotations)
+4. Persistence Objects (POs) are JPA `@Entity` annotated classes for database mapping
+5. Request/Response DTOs are simple data carriers with validation annotations
 
-### Dependencies
-1. `UsageController` depends on `BillingService` for business logic
-2. `BillingService` depends on `CustomerRepository`, `CustomerSubscriptionRepository`, `BillRepository`
-3. `GlobalExceptionHandler` handles exceptions from all controllers
+### Dependencies (Following Dependency Inversion)
+
+1. `UsageController` depends on `BillingService` interface (not implementation)
+2. `BillingServiceImpl` depends on `CustomerRepository`, `CustomerSubscriptionRepository`, `BillRepository` interfaces
+3. Infrastructure layer provides `JpaCustomerRepository`, `JpaCustomerSubscriptionRepository`, `JpaBillRepository` implementations
+4. `GlobalExceptionHandler` handles exceptions from all controllers
 
 ### Layered Architecture
-1. **Controller Layer**: HTTP request/response handling, input validation, delegates to service
-2. **Service Layer**: Business logic orchestration, billing calculation, transaction management
-3. **Repository Layer**: Spring Data JPA interfaces for data access
-4. **Entity Layer**: JPA entities mapped to database tables
-5. **DTO Layer**: Request/Response objects for API contract
-6. **Exception Layer**: Custom exceptions and global handler for error responses
+
+1. **Controller Layer** (`controller`): HTTP request/response handling, input validation, delegates to service interfaces
+2. **Service Layer** (`service`): Business logic orchestration, billing calculation, transaction management
+   - `service/` - Service interfaces defining business operations
+   - `service/impl/` - Concrete service implementations
+3. **Domain Layer** (`domain`): Pure business entities with domain logic, no infrastructure dependencies
+4. **Repository Layer** (`repository`): Repository interfaces defining data-access contracts
+5. **Infrastructure Layer** (`infrastructure`): Concrete implementations of repository interfaces
+   - `infrastructure/persistence/` - JPA repository implementations
+   - `infrastructure/persistence/entity/` - Persistence Objects (POs) with JPA annotations
+   - `infrastructure/persistence/mapper/` - Mappers between Domain and Persistence models
+6. **DTO Layer** (`dto`): Request/Response objects for API contract
+7. **Exception Layer** (`exception`): Custom exceptions and global handler for error responses
 
 ## Operations
 
-### Create Entity - Customer
+### Create Domain Entity - Customer
+
+1. Responsibility: Pure domain entity representing a customer (no infrastructure dependencies)
+2. Location: `domain/Customer.java`
+3. Attributes:
+   - `id`: String - Customer identifier
+   - `name`: String - Customer name
+   - `createdAt`: LocalDateTime - Creation timestamp
+4. Notes: No JPA annotations - pure Java POJO
+
+### Create Domain Entity - PricingPlan
+
+1. Responsibility: Pure domain entity representing a pricing plan (no infrastructure dependencies)
+2. Location: `domain/PricingPlan.java`
+3. Attributes:
+   - `id`: String - Plan identifier
+   - `name`: String - Plan name
+   - `monthlyQuota`: Integer - Monthly included tokens
+   - `overageRatePer1k`: BigDecimal - Rate per 1000 overage tokens
+   - `createdAt`: LocalDateTime - Creation timestamp
+4. Notes: No JPA annotations - pure Java POJO
+
+### Create Domain Entity - CustomerSubscription
+
+1. Responsibility: Pure domain entity representing a subscription with business logic
+2. Location: `domain/CustomerSubscription.java`
+3. Attributes:
+   - `id`: UUID - Subscription identifier
+   - `customerId`: String - Reference to customer
+   - `plan`: PricingPlan - Associated pricing plan (domain reference)
+   - `effectiveFrom`: LocalDate - Subscription start date
+   - `effectiveTo`: LocalDate - Subscription end date (nullable, null = indefinite)
+   - `createdAt`: LocalDateTime - Creation timestamp
+4. Methods:
+   - `isActiveOn(LocalDate date)`: boolean
+     - Logic: Return true if date >= effectiveFrom AND (effectiveTo is null OR date <= effectiveTo)
+5. Notes: No JPA annotations - pure Java POJO with domain logic
+
+### Create Domain Entity - Bill
+
+1. Responsibility: Pure domain entity with billing calculation logic
+2. Location: `domain/Bill.java`
+3. Attributes:
+   - `id`: UUID - Bill identifier
+   - `customerId`: String - Reference to customer
+   - `promptTokens`: Integer - Input tokens submitted
+   - `completionTokens`: Integer - Output tokens submitted
+   - `totalTokens`: Integer - Sum of prompt + completion tokens
+   - `includedTokensUsed`: Integer - Tokens deducted from quota
+   - `overageTokens`: Integer - Tokens beyond quota
+   - `totalCharge`: BigDecimal - Calculated charge
+   - `calculatedAt`: LocalDateTime - Billing timestamp
+4. Methods:
+   - `static create(String customerId, int promptTokens, int completionTokens, int remainingQuota, BigDecimal overageRatePer1k)`: Bill
+     - Logic:
+       - Calculate totalTokens = promptTokens + completionTokens
+       - Calculate includedTokensUsed = min(totalTokens, remainingQuota)
+       - Calculate overageTokens = totalTokens - includedTokensUsed
+       - Calculate totalCharge = (overageTokens / 1000.0) \* overageRatePer1k, rounded HALF_UP to 2 decimals
+       - Set calculatedAt to current UTC time
+       - Generate UUID for id
+       - Return new Bill instance
+5. Notes: No JPA annotations - pure Java POJO with factory method containing business logic
+
+### Create Persistence Object - CustomerPO
+
 1. Responsibility: JPA entity mapping to `customers` table
-2. Attributes:
+2. Location: `infrastructure/persistence/entity/CustomerPO.java`
+3. Attributes:
    - `id`: String - Primary key (VARCHAR(50))
    - `name`: String - Customer name (VARCHAR(100))
    - `createdAt`: LocalDateTime - Creation timestamp
-3. Annotations: `@Entity`, `@Table(name = "customers")`, `@Id`, `@Column`
+4. Annotations: `@Entity`, `@Table(name = "customers")`, `@Id`, `@Column`
 
-### Create Entity - PricingPlan
+### Create Persistence Object - PricingPlanPO
+
 1. Responsibility: JPA entity mapping to `pricing_plans` table
-2. Attributes:
+2. Location: `infrastructure/persistence/entity/PricingPlanPO.java`
+3. Attributes:
    - `id`: String - Primary key (VARCHAR(50))
    - `name`: String - Plan name (VARCHAR(100))
    - `monthlyQuota`: Integer - Monthly included tokens
    - `overageRatePer1k`: BigDecimal - Rate per 1000 overage tokens (DECIMAL(10,4))
    - `createdAt`: LocalDateTime - Creation timestamp
-3. Annotations: `@Entity`, `@Table(name = "pricing_plans")`, `@Id`, `@Column`
+4. Annotations: `@Entity`, `@Table(name = "pricing_plans")`, `@Id`, `@Column`
 
-### Create Entity - CustomerSubscription
-1. Responsibility: JPA entity mapping to `customer_subscriptions` table, linking customers to plans
-2. Attributes:
+### Create Persistence Object - CustomerSubscriptionPO
+
+1. Responsibility: JPA entity mapping to `customer_subscriptions` table
+2. Location: `infrastructure/persistence/entity/CustomerSubscriptionPO.java`
+3. Attributes:
    - `id`: UUID - Primary key
    - `customerId`: String - Foreign key to customers
    - `planId`: String - Foreign key to pricing_plans
    - `effectiveFrom`: LocalDate - Subscription start date
-   - `effectiveTo`: LocalDate - Subscription end date (nullable, null = indefinite)
+   - `effectiveTo`: LocalDate - Subscription end date (nullable)
    - `createdAt`: LocalDateTime - Creation timestamp
-3. Methods:
-   - `isActiveOn(LocalDate date)`: boolean
-     - Logic: Return true if date >= effectiveFrom AND (effectiveTo is null OR date <= effectiveTo)
-4. Relationships: `@ManyToOne` to Customer, `@ManyToOne` to PricingPlan
+4. Relationships: `@ManyToOne` to CustomerPO, `@ManyToOne` to PricingPlanPO
 5. Annotations: `@Entity`, `@Table(name = "customer_subscriptions")`
 
-### Create Entity - Bill
-1. Responsibility: JPA entity mapping to `bills` table, storing usage and calculated charges
-2. Attributes:
+### Create Persistence Object - BillPO
+
+1. Responsibility: JPA entity mapping to `bills` table
+2. Location: `infrastructure/persistence/entity/BillPO.java`
+3. Attributes:
    - `id`: UUID - Primary key (generated)
    - `customerId`: String - Foreign key to customers
    - `promptTokens`: Integer - Input tokens submitted
@@ -176,30 +281,24 @@ classDiagram
    - `overageTokens`: Integer - Tokens beyond quota
    - `totalCharge`: BigDecimal - Calculated charge (DECIMAL(10,2))
    - `calculatedAt`: LocalDateTime - Billing timestamp
-3. Methods:
-   - `static create(String customerId, int promptTokens, int completionTokens, int remainingQuota, BigDecimal overageRatePer1k)`: Bill
-     - Logic:
-       - Calculate totalTokens = promptTokens + completionTokens
-       - Calculate includedTokensUsed = min(totalTokens, remainingQuota)
-       - Calculate overageTokens = totalTokens - includedTokensUsed
-       - Calculate totalCharge = (overageTokens / 1000.0) * overageRatePer1k, rounded HALF_UP to 2 decimals
-       - Set calculatedAt to current UTC time
-       - Generate UUID for id
-       - Return new Bill instance
 4. Annotations: `@Entity`, `@Table(name = "bills")`, `@PrePersist` for id generation
 
 ### Create DTO - UsageRequest
+
 1. Responsibility: Input DTO for POST /api/usage endpoint
-2. Attributes:
+2. Location: `dto/UsageRequest.java`
+3. Attributes:
    - `customerId`: String - `@NotNull(message = "Customer ID is required")`
    - `promptTokens`: Integer - `@NotNull`, `@Min(value = 0, message = "Token count cannot be negative")`
    - `completionTokens`: Integer - `@NotNull`, `@Min(value = 0, message = "Token count cannot be negative")`
-3. Methods:
+4. Methods:
    - `getTotalTokens()`: Integer - Returns promptTokens + completionTokens
 
 ### Create DTO - BillResponse
+
 1. Responsibility: Output DTO for successful billing response
-2. Attributes:
+2. Location: `dto/BillResponse.java`
+3. Attributes:
    - `billId`: UUID
    - `customerId`: String
    - `totalTokens`: Integer
@@ -207,43 +306,149 @@ classDiagram
    - `overageTokens`: Integer
    - `totalCharge`: BigDecimal
    - `calculatedAt`: LocalDateTime
-3. Methods:
+4. Methods:
    - `static fromBill(Bill bill)`: BillResponse
-     - Logic: Map all fields from Bill entity to BillResponse
+     - Logic: Map all fields from Bill domain entity to BillResponse
 
 ### Create DTO - ErrorResponse
+
 1. Responsibility: Unified error response structure
-2. Attributes:
+2. Location: `dto/ErrorResponse.java`
+3. Attributes:
    - `error`: String - Error type/code
    - `message`: String - Human-readable error message
    - `timestamp`: LocalDateTime - When error occurred
-3. Constructors: All-args constructor, static factory method
+4. Constructors: All-args constructor, static factory method
 
-### Create Repository - CustomerRepository
-1. Responsibility: Data access for Customer entities
-2. Interface: `extends JpaRepository<Customer, String>`
-3. Methods: Use inherited `findById(String id)` - returns `Optional<Customer>`
+### Create Mapper - CustomerMapper
 
-### Create Repository - CustomerSubscriptionRepository
-1. Responsibility: Data access for CustomerSubscription entities with active subscription lookup
-2. Interface: `extends JpaRepository<CustomerSubscription, UUID>`
+1. Responsibility: Convert between Customer domain entity and CustomerPO
+2. Location: `infrastructure/persistence/mapper/CustomerMapper.java`
 3. Methods:
-   - `findByCustomerIdAndEffectiveFromLessThanEqualAndEffectiveToGreaterThanEqualOrEffectiveToIsNull(String customerId, LocalDate date, LocalDate date2)`: List<CustomerSubscription>
-   - Or use `@Query` annotation:
+   - `toDomain(CustomerPO po)`: Customer - Convert PO to domain entity
+   - `toPO(Customer domain)`: CustomerPO - Convert domain entity to PO
+
+### Create Mapper - PricingPlanMapper
+
+1. Responsibility: Convert between PricingPlan domain entity and PricingPlanPO
+2. Location: `infrastructure/persistence/mapper/PricingPlanMapper.java`
+3. Methods:
+   - `toDomain(PricingPlanPO po)`: PricingPlan - Convert PO to domain entity
+   - `toPO(PricingPlan domain)`: PricingPlanPO - Convert domain entity to PO
+
+### Create Mapper - CustomerSubscriptionMapper
+
+1. Responsibility: Convert between CustomerSubscription domain entity and CustomerSubscriptionPO
+2. Location: `infrastructure/persistence/mapper/CustomerSubscriptionMapper.java`
+3. Dependencies: `PricingPlanMapper` for nested plan conversion
+3. Methods:
+   - `toDomain(CustomerSubscriptionPO po, PricingPlan plan)`: CustomerSubscription - Convert PO to domain entity with resolved plan
+   - `toPO(CustomerSubscription domain)`: CustomerSubscriptionPO - Convert domain entity to PO
+
+### Create Mapper - BillMapper
+
+1. Responsibility: Convert between Bill domain entity and BillPO
+2. Location: `infrastructure/persistence/mapper/BillMapper.java`
+3. Methods:
+   - `toDomain(BillPO po)`: Bill - Convert PO to domain entity
+   - `toPO(Bill domain)`: BillPO - Convert domain entity to PO
+
+### Create Repository Interface - CustomerRepository
+
+1. Responsibility: Define data-access contract for Customer entities (Dependency Inversion)
+2. Location: `repository/CustomerRepository.java`
+3. Type: Interface (no Spring annotations)
+4. Methods:
+   - `findById(String id)`: Optional<Customer> - Find customer by ID
+
+### Create Repository Interface - CustomerSubscriptionRepository
+
+1. Responsibility: Define data-access contract for CustomerSubscription entities (Dependency Inversion)
+2. Location: `repository/CustomerSubscriptionRepository.java`
+3. Type: Interface (no Spring annotations)
+4. Methods:
+   - `findActiveSubscriptions(String customerId, LocalDate date)`: List<CustomerSubscription> - Find active subscriptions for customer on date
+
+### Create Repository Interface - BillRepository
+
+1. Responsibility: Define data-access contract for Bill entities (Dependency Inversion)
+2. Location: `repository/BillRepository.java`
+3. Type: Interface (no Spring annotations)
+4. Methods:
+   - `save(Bill bill)`: Bill - Persist a bill
+   - `sumIncludedTokensUsedForMonth(String customerId, LocalDateTime monthStart, LocalDateTime monthEnd)`: Integer - Sum included tokens for month
+
+### Create JPA Repository - JpaCustomerRepositoryAdapter
+
+1. Responsibility: Spring Data JPA implementation of CustomerRepository interface
+2. Location: `infrastructure/persistence/JpaCustomerRepositoryAdapter.java`
+3. Annotations: `@Repository`
+4. Dependencies: `SpringDataCustomerRepository` (internal JPA interface), `CustomerMapper`
+5. Implements: `CustomerRepository`
+6. Methods:
+   - `findById(String id)`: Optional<Customer>
+     - Logic: Delegate to Spring Data, map result using CustomerMapper.toDomain()
+
+### Create Spring Data Interface - SpringDataCustomerRepository
+
+1. Responsibility: Internal Spring Data JPA interface for CustomerPO
+2. Location: `infrastructure/persistence/SpringDataCustomerRepository.java`
+3. Interface: `extends JpaRepository<CustomerPO, String>`
+4. Notes: Internal to infrastructure layer, not exposed to domain/service layers
+
+### Create JPA Repository - JpaCustomerSubscriptionRepositoryAdapter
+
+1. Responsibility: Spring Data JPA implementation of CustomerSubscriptionRepository interface
+2. Location: `infrastructure/persistence/JpaCustomerSubscriptionRepositoryAdapter.java`
+3. Annotations: `@Repository`
+4. Dependencies: `SpringDataCustomerSubscriptionRepository`, `SpringDataPricingPlanRepository`, `CustomerSubscriptionMapper`, `PricingPlanMapper`
+5. Implements: `CustomerSubscriptionRepository`
+6. Methods:
+   - `findActiveSubscriptions(String customerId, LocalDate date)`: List<CustomerSubscription>
+     - Logic: Query POs, resolve PricingPlan for each, map to domain using CustomerSubscriptionMapper
+
+### Create Spring Data Interface - SpringDataCustomerSubscriptionRepository
+
+1. Responsibility: Internal Spring Data JPA interface for CustomerSubscriptionPO
+2. Location: `infrastructure/persistence/SpringDataCustomerSubscriptionRepository.java`
+3. Interface: `extends JpaRepository<CustomerSubscriptionPO, UUID>`
+4. Methods:
+   - `@Query` annotation:
      ```java
-     @Query("SELECT cs FROM CustomerSubscription cs WHERE cs.customerId = :customerId " +
+     @Query("SELECT cs FROM CustomerSubscriptionPO cs WHERE cs.customerId = :customerId " +
             "AND cs.effectiveFrom <= :date AND (cs.effectiveTo IS NULL OR cs.effectiveTo >= :date) " +
             "ORDER BY cs.createdAt DESC")
-     List<CustomerSubscription> findActiveSubscriptions(@Param("customerId") String customerId, @Param("date") LocalDate date);
+     List<CustomerSubscriptionPO> findActiveSubscriptions(@Param("customerId") String customerId, @Param("date") LocalDate date);
      ```
 
-### Create Repository - BillRepository
-1. Responsibility: Data access for Bill entities with monthly usage aggregation
-2. Interface: `extends JpaRepository<Bill, UUID>`
-3. Methods:
+### Create Spring Data Interface - SpringDataPricingPlanRepository
+
+1. Responsibility: Internal Spring Data JPA interface for PricingPlanPO
+2. Location: `infrastructure/persistence/SpringDataPricingPlanRepository.java`
+3. Interface: `extends JpaRepository<PricingPlanPO, String>`
+
+### Create JPA Repository - JpaBillRepositoryAdapter
+
+1. Responsibility: Spring Data JPA implementation of BillRepository interface
+2. Location: `infrastructure/persistence/JpaBillRepositoryAdapter.java`
+3. Annotations: `@Repository`
+4. Dependencies: `SpringDataBillRepository`, `BillMapper`
+5. Implements: `BillRepository`
+6. Methods:
+   - `save(Bill bill)`: Bill
+     - Logic: Map to PO using BillMapper, save via Spring Data, map result back to domain
+   - `sumIncludedTokensUsedForMonth(String customerId, LocalDateTime monthStart, LocalDateTime monthEnd)`: Integer
+     - Logic: Delegate to Spring Data query
+
+### Create Spring Data Interface - SpringDataBillRepository
+
+1. Responsibility: Internal Spring Data JPA interface for BillPO
+2. Location: `infrastructure/persistence/SpringDataBillRepository.java`
+3. Interface: `extends JpaRepository<BillPO, UUID>`
+4. Methods:
    - Custom query for current month usage:
      ```java
-     @Query("SELECT COALESCE(SUM(b.includedTokensUsed), 0) FROM Bill b " +
+     @Query("SELECT COALESCE(SUM(b.includedTokensUsed), 0) FROM BillPO b " +
             "WHERE b.customerId = :customerId " +
             "AND b.calculatedAt >= :monthStart AND b.calculatedAt < :monthEnd")
      Integer sumIncludedTokensUsedForMonth(@Param("customerId") String customerId,
@@ -252,27 +457,33 @@ classDiagram
      ```
 
 ### Create Exception - CustomerNotFoundException
+
 1. Responsibility: Thrown when customer ID does not exist
-2. Inheritance: extends RuntimeException
-3. Attributes:
+2. Location: `exception/CustomerNotFoundException.java`
+3. Inheritance: extends RuntimeException
+4. Attributes:
    - `customerId`: String - The ID that was not found
-4. Constructors:
+5. Constructors:
    - `CustomerNotFoundException(String customerId)`: Sets message "Customer not found"
-5. HTTP Status: 404 Not Found
+6. HTTP Status: 404 Not Found
 
 ### Create Exception - NoActiveSubscriptionException
+
 1. Responsibility: Thrown when customer has no active subscription
-2. Inheritance: extends RuntimeException
-3. Attributes:
+2. Location: `exception/NoActiveSubscriptionException.java`
+3. Inheritance: extends RuntimeException
+4. Attributes:
    - `customerId`: String - The customer ID
-4. Constructors:
+5. Constructors:
    - `NoActiveSubscriptionException(String customerId)`: Sets message "No active subscription found"
-5. HTTP Status: 422 Unprocessable Entity
+6. HTTP Status: 422 Unprocessable Entity
 
 ### Create Exception Handler - GlobalExceptionHandler
+
 1. Responsibility: Unified handling of all exceptions across controllers
-2. Annotations: `@RestControllerAdvice`
-3. Methods:
+2. Location: `exception/GlobalExceptionHandler.java`
+3. Annotations: `@RestControllerAdvice`
+4. Methods:
    - `handleCustomerNotFoundException(CustomerNotFoundException ex)`: ResponseEntity<ErrorResponse>
      - Logic: Return 404 with ErrorResponse containing "Customer not found"
    - `handleNoActiveSubscriptionException(NoActiveSubscriptionException ex)`: ResponseEntity<ErrorResponse>
@@ -282,11 +493,22 @@ classDiagram
    - `handleConstraintViolationException(ConstraintViolationException ex)`: ResponseEntity<ErrorResponse>
      - Logic: Return 400 with validation error message
 
-### Create Service - BillingService
-1. Responsibility: Orchestrate billing calculation and persistence
-2. Annotations: `@Service`, `@Transactional`
-3. Dependencies: `CustomerRepository`, `CustomerSubscriptionRepository`, `BillRepository`
+### Create Service Interface - BillingService
+
+1. Responsibility: Define business operations contract for billing (Dependency Inversion)
+2. Location: `service/BillingService.java`
+3. Type: Interface (no Spring annotations)
 4. Methods:
+   - `calculateBill(UsageRequest request)`: Bill - Calculate and persist a bill for the usage request
+
+### Create Service Implementation - BillingServiceImpl
+
+1. Responsibility: Concrete implementation of billing business logic
+2. Location: `service/impl/BillingServiceImpl.java`
+3. Annotations: `@Service`, `@Transactional`
+4. Implements: `BillingService`
+5. Dependencies: `CustomerRepository`, `CustomerSubscriptionRepository`, `BillRepository` (all interfaces)
+6. Methods:
    - `calculateBill(UsageRequest request)`: Bill
      - Input Validation: Request is pre-validated by controller
      - Business Logic:
@@ -294,49 +516,60 @@ classDiagram
        2. Get current date (UTC)
        3. Find active subscription for customer and current date
        4. If no active subscription, throw NoActiveSubscriptionException
-       5. Get PricingPlan from subscription
+       5. Get PricingPlan from subscription (domain entity)
        6. Calculate month boundaries (first day 00:00:00 to first day of next month 00:00:00, UTC)
-       7. Query sum of includedTokensUsed for current month
+       7. Query sum of includedTokensUsed for current month via BillRepository interface
        8. Calculate remainingQuota = monthlyQuota - currentMonthUsage
        9. Create Bill using Bill.create() with request data, remainingQuota, and overage rate
-       10. Save Bill to repository
-       11. Return saved Bill
+       10. Save Bill via BillRepository interface
+       11. Return saved Bill (domain entity)
      - Exception Handling: Let exceptions propagate to GlobalExceptionHandler
-     - Return Value: Persisted Bill entity
+     - Return Value: Persisted Bill domain entity
 
 ### Create Controller - UsageController
+
 1. Responsibility: Handle POST /api/usage endpoint
-2. Annotations: `@RestController`, `@RequestMapping("/api")`
-3. Dependencies: `BillingService`
-4. Methods:
+2. Location: `controller/UsageController.java`
+3. Annotations: `@RestController`, `@RequestMapping("/api")`
+4. Dependencies: `BillingService` interface (not implementation - Dependency Inversion)
+5. Methods:
    - `submitUsage(@Valid @RequestBody UsageRequest request)`: ResponseEntity<BillResponse>
      - Annotations: `@PostMapping("/usage")`
      - Logic:
-       1. Call billingService.calculateBill(request)
-       2. Convert Bill to BillResponse using BillResponse.fromBill()
+       1. Call billingService.calculateBill(request) via interface
+       2. Convert Bill (domain entity) to BillResponse using BillResponse.fromBill()
        3. Return ResponseEntity.status(HttpStatus.CREATED).body(billResponse)
 
 ## Norms
 
-1. **Package Structure**:
-   - `org.tw.token_billing.controller` - REST controllers
-   - `org.tw.token_billing.service` - Business logic services
-   - `org.tw.token_billing.repository` - Spring Data JPA repositories
-   - `org.tw.token_billing.entity` - JPA entities
-   - `org.tw.token_billing.dto` - Request/Response DTOs
+1. **Package Structure** (Following Three-Layer + DIP Architecture):
+   - `org.tw.token_billing.controller` - REST controllers (depend on service interfaces)
+   - `org.tw.token_billing.service` - Service interfaces defining business operations
+   - `org.tw.token_billing.service.impl` - Concrete service implementations
+   - `org.tw.token_billing.repository` - Repository interfaces defining data-access contracts
+   - `org.tw.token_billing.domain` - Pure domain entities with business logic (no framework dependencies)
+   - `org.tw.token_billing.dto` - Request/Response DTOs for API contract
    - `org.tw.token_billing.exception` - Custom exceptions and handlers
+   - `org.tw.token_billing.infrastructure.persistence` - JPA repository implementations (adapters)
+   - `org.tw.token_billing.infrastructure.persistence.entity` - Persistence Objects (POs) with JPA annotations
+   - `org.tw.token_billing.infrastructure.persistence.mapper` - Mappers between Domain and Persistence models
 
 2. **Annotation Standards**:
    - Controllers: `@RestController`, `@RequestMapping`
-   - Services: `@Service`, `@Transactional` on class or methods
-   - Repositories: Extend `JpaRepository<Entity, IdType>`
-   - Entities: `@Entity`, `@Table`, `@Id`, `@Column` with explicit naming
+   - Service Interfaces: No annotations (pure Java interfaces)
+   - Service Implementations: `@Service`, `@Transactional` on class or methods
+   - Repository Interfaces: No annotations (pure Java interfaces)
+   - Repository Implementations: `@Repository`
+   - Spring Data Interfaces: Extend `JpaRepository<PO, IdType>` (internal to infrastructure)
+   - Domain Entities: No annotations (pure Java POJOs)
+   - Persistence Objects: `@Entity`, `@Table`, `@Id`, `@Column` with explicit naming
    - DTOs: `@NotNull`, `@Min`, `@Max` for validation
    - Exception Handler: `@RestControllerAdvice`, `@ExceptionHandler`
 
 3. **Dependency Injection**:
    - Use constructor injection (Lombok `@RequiredArgsConstructor`)
    - Mark injected fields as `private final`
+   - Inject interfaces, not implementations (Dependency Inversion)
 
 4. **Exception Handling**:
    - Custom exceptions extend RuntimeException
@@ -351,9 +584,14 @@ classDiagram
    - IDs: `UUID` for generated, `String` for external/business keys
 
 6. **Naming Conventions**:
-   - Entities: Singular noun (Customer, Bill)
-   - Repositories: EntityNameRepository (CustomerRepository)
-   - Services: DomainService (BillingService)
+   - Domain Entities: Singular noun (Customer, Bill) - pure Java classes
+   - Persistence Objects: EntityNamePO (CustomerPO, BillPO) - JPA annotated classes
+   - Repository Interfaces: EntityNameRepository (CustomerRepository) - in repository package
+   - Repository Implementations: JpaEntityNameRepositoryAdapter (JpaCustomerRepositoryAdapter) - in infrastructure
+   - Spring Data Interfaces: SpringDataEntityNameRepository (SpringDataCustomerRepository) - internal to infrastructure
+   - Service Interfaces: DomainService (BillingService) - in service package
+   - Service Implementations: DomainServiceImpl (BillingServiceImpl) - in service.impl package
+   - Mappers: EntityNameMapper (CustomerMapper, BillMapper) - in infrastructure.persistence.mapper
    - Controllers: DomainController (UsageController)
    - DTOs: ActionRequest/Response (UsageRequest, BillResponse)
    - Exceptions: ConditionException (CustomerNotFoundException)
@@ -366,6 +604,19 @@ classDiagram
    - Use SLF4J with Lombok `@Slf4j`
    - Log at INFO level for business operations
    - Log at ERROR level for exceptions in GlobalExceptionHandler
+
+9. **Domain-Persistence Separation**:
+   - Domain entities contain business logic and have no framework dependencies
+   - Persistence Objects (POs) are purely for database mapping with JPA annotations
+   - Mappers handle bidirectional conversion between Domain and PO
+   - Repository adapters encapsulate all JPA/Spring Data access and return domain entities
+   - Service layer works exclusively with domain entities (never POs)
+   - Controller layer works with DTOs and domain entities (never POs)
+
+10. **Interface Segregation**:
+    - Service interfaces define only business operations needed by controllers
+    - Repository interfaces define only data operations needed by services
+    - Implementation details (JPA, Spring Data) are hidden in infrastructure layer
 
 ## Safeguards
 
@@ -421,3 +672,12 @@ classDiagram
 10. **Performance Constraints**:
     - Current month aggregation query must use existing index on `bills(customer_id, calculated_at)`
     - No N+1 query issues in subscription/plan resolution
+
+11. **Architecture Constraints** (Dependency Inversion):
+    - Controllers must depend on Service interfaces, not implementations
+    - Services must depend on Repository interfaces, not implementations
+    - Domain entities must have no JPA or Spring annotations
+    - Only infrastructure layer may reference Persistence Objects (POs)
+    - Only infrastructure layer may use Spring Data JPA interfaces
+    - Mappers must be used for all Domain ↔ PO conversions
+    - No direct PO usage outside infrastructure layer
