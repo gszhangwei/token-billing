@@ -25,8 +25,4 @@ public class UsageRequest {
     @NotNull(message = "Token count cannot be negative")
     @Min(value = 0, message = "Token count cannot be negative")
     private Integer completionTokens;
-
-    public Integer getTotalTokens() {
-        return promptTokens + completionTokens;
-    }
 }

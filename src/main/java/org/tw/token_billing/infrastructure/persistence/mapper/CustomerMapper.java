@@ -17,15 +17,4 @@ public class CustomerMapper {
                 .createdAt(po.getCreatedAt())
                 .build();
     }
-
-    public CustomerPO toPO(Customer domain) {
-        if (domain == null) {
-            return null;
-        }
-        return CustomerPO.builder()
-                .id(domain.getId())
-                .name(domain.getName())
-                .createdAt(domain.getCreatedAt())
-                .build();
-    }
 }

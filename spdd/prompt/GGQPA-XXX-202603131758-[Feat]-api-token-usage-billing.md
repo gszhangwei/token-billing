@@ -31,7 +31,6 @@ classDiagram
         +LocalDate effectiveFrom
         +LocalDate effectiveTo
         +LocalDateTime createdAt
-        +isActiveOn(LocalDate date) boolean
     }
 
     class Bill {
@@ -51,7 +50,6 @@ classDiagram
         +String customerId
         +Integer promptTokens
         +Integer completionTokens
-        +getTotalTokens() Integer
     }
 
     class BillResponse {
@@ -191,7 +189,7 @@ classDiagram
 
 ### Create Domain Entity - CustomerSubscription
 
-1. Responsibility: Pure domain entity representing a subscription with business logic
+1. Responsibility: Pure domain entity representing a subscription
 2. Location: `domain/CustomerSubscription.java`
 3. Attributes:
    - `id`: UUID - Subscription identifier
@@ -200,10 +198,7 @@ classDiagram
    - `effectiveFrom`: LocalDate - Subscription start date
    - `effectiveTo`: LocalDate - Subscription end date (nullable, null = indefinite)
    - `createdAt`: LocalDateTime - Creation timestamp
-4. Methods:
-   - `isActiveOn(LocalDate date)`: boolean
-     - Logic: Return true if date >= effectiveFrom AND (effectiveTo is null OR date <= effectiveTo)
-5. Notes: No JPA annotations - pure Java POJO with domain logic
+4. Notes: No JPA annotations - pure Java POJO. Active subscription filtering is done via SQL query in repository layer.
 
 ### Create Domain Entity - Bill
 
@@ -295,8 +290,7 @@ classDiagram
    - `customerId`: String - `@NotNull(message = "Customer ID is required")`
    - `promptTokens`: Integer - `@NotNull`, `@Min(value = 0, message = "Token count cannot be negative")`
    - `completionTokens`: Integer - `@NotNull`, `@Min(value = 0, message = "Token count cannot be negative")`
-4. Methods:
-   - `getTotalTokens()`: Integer - Returns promptTokens + completionTokens
+4. Notes: Total tokens calculation is done internally in `Bill.create()` factory method
 
 ### Create DTO - BillResponse
 
@@ -326,28 +320,24 @@ classDiagram
 
 ### Create Mapper - CustomerMapper
 
-1. Responsibility: Convert between Customer domain entity and CustomerPO
+1. Responsibility: Convert CustomerPO to Customer domain entity
 2. Location: `infrastructure/persistence/mapper/CustomerMapper.java`
 3. Methods:
    - `toDomain(CustomerPO po)`: Customer - Convert PO to domain entity
-   - `toPO(Customer domain)`: CustomerPO - Convert domain entity to PO
 
 ### Create Mapper - PricingPlanMapper
 
-1. Responsibility: Convert between PricingPlan domain entity and PricingPlanPO
+1. Responsibility: Convert PricingPlanPO to PricingPlan domain entity
 2. Location: `infrastructure/persistence/mapper/PricingPlanMapper.java`
 3. Methods:
    - `toDomain(PricingPlanPO po)`: PricingPlan - Convert PO to domain entity
-   - `toPO(PricingPlan domain)`: PricingPlanPO - Convert domain entity to PO
 
 ### Create Mapper - CustomerSubscriptionMapper
 
-1. Responsibility: Convert between CustomerSubscription domain entity and CustomerSubscriptionPO
+1. Responsibility: Convert CustomerSubscriptionPO to CustomerSubscription domain entity
 2. Location: `infrastructure/persistence/mapper/CustomerSubscriptionMapper.java`
-3. Dependencies: `PricingPlanMapper` for nested plan conversion
 3. Methods:
    - `toDomain(CustomerSubscriptionPO po, PricingPlan plan)`: CustomerSubscription - Convert PO to domain entity with resolved plan
-   - `toPO(CustomerSubscription domain)`: CustomerSubscriptionPO - Convert domain entity to PO
 
 ### Create Mapper - BillMapper
 

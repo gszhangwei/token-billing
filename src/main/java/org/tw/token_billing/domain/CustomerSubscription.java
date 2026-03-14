@@ -18,10 +18,4 @@ public class CustomerSubscription {
     private final LocalDate effectiveFrom;
     private final LocalDate effectiveTo;
     private final LocalDateTime createdAt;
-
-    public boolean isActiveOn(LocalDate date) {
-        boolean afterOrOnStart = !date.isBefore(effectiveFrom);
-        boolean beforeOrOnEnd = effectiveTo == null || !date.isAfter(effectiveTo);
-        return afterOrOnStart && beforeOrOnEnd;
-    }
 }

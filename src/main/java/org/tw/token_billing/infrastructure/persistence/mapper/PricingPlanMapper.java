@@ -19,17 +19,4 @@ public class PricingPlanMapper {
                 .createdAt(po.getCreatedAt())
                 .build();
     }
-
-    public PricingPlanPO toPO(PricingPlan domain) {
-        if (domain == null) {
-            return null;
-        }
-        return PricingPlanPO.builder()
-                .id(domain.getId())
-                .name(domain.getName())
-                .monthlyQuota(domain.getMonthlyQuota())
-                .overageRatePer1k(domain.getOverageRatePer1k())
-                .createdAt(domain.getCreatedAt())
-                .build();
-    }
 }

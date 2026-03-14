@@ -21,18 +21,4 @@ public class CustomerSubscriptionMapper {
                 .createdAt(po.getCreatedAt())
                 .build();
     }
-
-    public CustomerSubscriptionPO toPO(CustomerSubscription domain) {
-        if (domain == null) {
-            return null;
-        }
-        return CustomerSubscriptionPO.builder()
-                .id(domain.getId())
-                .customerId(domain.getCustomerId())
-                .planId(domain.getPlan() != null ? domain.getPlan().getId() : null)
-                .effectiveFrom(domain.getEffectiveFrom())
-                .effectiveTo(domain.getEffectiveTo())
-                .createdAt(domain.getCreatedAt())
-                .build();
-    }
 }
