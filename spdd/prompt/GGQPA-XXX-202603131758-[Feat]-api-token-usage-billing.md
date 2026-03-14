@@ -367,7 +367,7 @@ classDiagram
 2. Location: `repository/CustomerSubscriptionRepository.java`
 3. Type: Interface (no Spring annotations)
 4. Methods:
-   - `findActiveSubscriptions(String customerId, LocalDate date)`: List<CustomerSubscription> - Find active subscriptions for customer on date
+   - `findActiveSubscription(String customerId, LocalDate date)`: Optional<CustomerSubscription> - Find active subscription for customer on date (only one active subscription allowed at any time)
 
 ### Create Repository Interface - BillRepository
 
@@ -404,8 +404,8 @@ classDiagram
 4. Dependencies: `SpringDataCustomerSubscriptionRepository`, `SpringDataPricingPlanRepository`, `CustomerSubscriptionMapper`, `PricingPlanMapper`
 5. Implements: `CustomerSubscriptionRepository`
 6. Methods:
-   - `findActiveSubscriptions(String customerId, LocalDate date)`: List<CustomerSubscription>
-     - Logic: Query POs, resolve PricingPlan for each, map to domain using CustomerSubscriptionMapper
+   - `findActiveSubscription(String customerId, LocalDate date)`: Optional<CustomerSubscription>
+     - Logic: Query PO, resolve PricingPlan, map to domain using CustomerSubscriptionMapper
 
 ### Create Spring Data Interface - SpringDataCustomerSubscriptionRepository
 
@@ -417,8 +417,8 @@ classDiagram
      ```java
      @Query("SELECT cs FROM CustomerSubscriptionPO cs WHERE cs.customerId = :customerId " +
             "AND cs.effectiveFrom <= :date AND (cs.effectiveTo IS NULL OR cs.effectiveTo >= :date) " +
-            "ORDER BY cs.createdAt DESC")
-     List<CustomerSubscriptionPO> findActiveSubscriptions(@Param("customerId") String customerId, @Param("date") LocalDate date);
+            "ORDER BY cs.createdAt DESC LIMIT 1")
+     Optional<CustomerSubscriptionPO> findActiveSubscription(@Param("customerId") String customerId, @Param("date") LocalDate date);
      ```
 
 ### Create Spring Data Interface - SpringDataPricingPlanRepository

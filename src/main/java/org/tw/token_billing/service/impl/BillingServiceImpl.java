@@ -3,7 +3,6 @@ package org.tw.token_billing.service.impl;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,14 +39,10 @@ public class BillingServiceImpl implements BillingService {
 
         LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
 
-        List<CustomerSubscription> activeSubscriptions =
-                customerSubscriptionRepository.findActiveSubscriptions(customerId, currentDate);
+        CustomerSubscription subscription = customerSubscriptionRepository
+                .findActiveSubscription(customerId, currentDate)
+                .orElseThrow(() -> new NoActiveSubscriptionException(customerId));
 
-        if (activeSubscriptions.isEmpty()) {
-            throw new NoActiveSubscriptionException(customerId);
-        }
-
-        CustomerSubscription subscription = activeSubscriptions.get(0);
         PricingPlan plan = subscription.getPlan();
 
         LocalDateTime monthStart = currentDate.withDayOfMonth(1).atStartOfDay();
