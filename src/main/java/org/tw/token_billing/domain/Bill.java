@@ -14,6 +14,10 @@ import lombok.Getter;
 @Builder
 @AllArgsConstructor
 public class Bill {
+    private static final int TOKENS_PER_PRICING_UNIT = 1000;
+    private static final int CALCULATION_PRECISION_SCALE = 10;
+    private static final int CURRENCY_SCALE = 2;
+
     private final UUID id;
     private final String customerId;
     private final Integer promptTokens;
@@ -31,9 +35,9 @@ public class Bill {
         int overageTokens = totalTokens - includedTokensUsed;
 
         BigDecimal totalCharge = BigDecimal.valueOf(overageTokens)
-                .divide(BigDecimal.valueOf(1000), 10, RoundingMode.HALF_UP)
+                .divide(BigDecimal.valueOf(TOKENS_PER_PRICING_UNIT), CALCULATION_PRECISION_SCALE, RoundingMode.HALF_UP)
                 .multiply(overageRatePer1k)
-                .setScale(2, RoundingMode.HALF_UP);
+                .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
 
         return Bill.builder()
                 .id(UUID.randomUUID())

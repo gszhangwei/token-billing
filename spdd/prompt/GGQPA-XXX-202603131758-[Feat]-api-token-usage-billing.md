@@ -209,7 +209,11 @@ classDiagram
 
 1. Responsibility: Pure domain entity with billing calculation logic
 2. Location: `domain/Bill.java`
-3. Attributes:
+3. Constants:
+   - `TOKENS_PER_PRICING_UNIT`: int = 1000 - Divisor for rate calculation (rate is per 1k tokens)
+   - `CALCULATION_PRECISION_SCALE`: int = 10 - Intermediate precision to avoid rounding errors
+   - `CURRENCY_SCALE`: int = 2 - Final charge decimal places (standard currency format)
+4. Attributes:
    - `id`: UUID - Bill identifier
    - `customerId`: String - Reference to customer
    - `promptTokens`: Integer - Input tokens submitted
@@ -219,17 +223,17 @@ classDiagram
    - `overageTokens`: Integer - Tokens beyond quota
    - `totalCharge`: BigDecimal - Calculated charge
    - `calculatedAt`: LocalDateTime - Billing timestamp
-4. Methods:
+5. Methods:
    - `static create(String customerId, int promptTokens, int completionTokens, int remainingQuota, BigDecimal overageRatePer1k)`: Bill
      - Logic:
        - Calculate totalTokens = promptTokens + completionTokens
-       - Calculate includedTokensUsed = min(totalTokens, remainingQuota)
+       - Calculate includedTokensUsed = min(totalTokens, max(remainingQuota, 0))
        - Calculate overageTokens = totalTokens - includedTokensUsed
-       - Calculate totalCharge = (overageTokens / 1000.0) \* overageRatePer1k, rounded HALF_UP to 2 decimals
+       - Calculate totalCharge = (overageTokens / TOKENS_PER_PRICING_UNIT) × overageRatePer1k, using CALCULATION_PRECISION_SCALE for intermediate division, rounded HALF_UP to CURRENCY_SCALE decimals
        - Set calculatedAt to current UTC time
        - Generate UUID for id
        - Return new Bill instance
-5. Notes: No JPA annotations - pure Java POJO with factory method containing business logic
+6. Notes: No JPA annotations - pure Java POJO with factory method containing business logic
 
 ### Create Persistence Object - CustomerPO
 
