@@ -21,11 +21,14 @@ class BillResponseTest {
         Bill bill = Bill.builder()
                 .id(billId)
                 .customerId("CUST-001")
+                .modelId("fast-model")
                 .promptTokens(1000)
                 .completionTokens(500)
                 .totalTokens(1500)
                 .includedTokensUsed(1000)
                 .overageTokens(500)
+                .promptCharge(null)
+                .completionCharge(null)
                 .totalCharge(new BigDecimal("0.01"))
                 .calculatedAt(calculatedAt)
                 .build();
@@ -34,10 +37,46 @@ class BillResponseTest {
 
         assertThat(response.getBillId()).isEqualTo(billId);
         assertThat(response.getCustomerId()).isEqualTo("CUST-001");
+        assertThat(response.getModelId()).isEqualTo("fast-model");
         assertThat(response.getTotalTokens()).isEqualTo(1500);
         assertThat(response.getIncludedTokensUsed()).isEqualTo(1000);
         assertThat(response.getOverageTokens()).isEqualTo(500);
+        assertThat(response.getPromptCharge()).isNull();
+        assertThat(response.getCompletionCharge()).isNull();
         assertThat(response.getTotalCharge()).isEqualByComparingTo(new BigDecimal("0.01"));
         assertThat(response.getCalculatedAt()).isEqualTo(calculatedAt);
+    }
+
+    @Test
+    @DisplayName("Should map premium bill with charge breakdown")
+    void should_map_premium_bill_when_from_bill_given_premium_bill_with_charges() {
+        UUID billId = UUID.randomUUID();
+        LocalDateTime calculatedAt = LocalDateTime.now();
+
+        Bill bill = Bill.builder()
+                .id(billId)
+                .customerId("CUST-002")
+                .modelId("reasoning-model")
+                .promptTokens(10000)
+                .completionTokens(20000)
+                .totalTokens(30000)
+                .includedTokensUsed(0)
+                .overageTokens(0)
+                .promptCharge(new BigDecimal("0.30"))
+                .completionCharge(new BigDecimal("1.20"))
+                .totalCharge(new BigDecimal("1.50"))
+                .calculatedAt(calculatedAt)
+                .build();
+
+        BillResponse response = BillResponse.fromBill(bill);
+
+        assertThat(response.getBillId()).isEqualTo(billId);
+        assertThat(response.getCustomerId()).isEqualTo("CUST-002");
+        assertThat(response.getModelId()).isEqualTo("reasoning-model");
+        assertThat(response.getIncludedTokensUsed()).isEqualTo(0);
+        assertThat(response.getOverageTokens()).isEqualTo(0);
+        assertThat(response.getPromptCharge()).isEqualByComparingTo(new BigDecimal("0.30"));
+        assertThat(response.getCompletionCharge()).isEqualByComparingTo(new BigDecimal("1.20"));
+        assertThat(response.getTotalCharge()).isEqualByComparingTo(new BigDecimal("1.50"));
     }
 }

@@ -40,11 +40,14 @@ class UsageControllerTest {
         Bill bill = Bill.builder()
                 .id(UUID.randomUUID())
                 .customerId("CUST-001")
+                .modelId("fast-model")
                 .promptTokens(1000)
                 .completionTokens(500)
                 .totalTokens(1500)
                 .includedTokensUsed(1500)
                 .overageTokens(0)
+                .promptCharge(null)
+                .completionCharge(null)
                 .totalCharge(BigDecimal.ZERO)
                 .calculatedAt(LocalDateTime.now())
                 .build();
@@ -56,6 +59,7 @@ class UsageControllerTest {
                         .content("""
                                 {
                                     "customerId": "CUST-001",
+                                    "modelId": "fast-model",
                                     "promptTokens": 1000,
                                     "completionTokens": 500
                                 }
@@ -63,6 +67,7 @@ class UsageControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.billId").exists())
                 .andExpect(jsonPath("$.customerId").value("CUST-001"))
+                .andExpect(jsonPath("$.modelId").value("fast-model"))
                 .andExpect(jsonPath("$.totalTokens").value(1500))
                 .andExpect(jsonPath("$.includedTokensUsed").value(1500))
                 .andExpect(jsonPath("$.overageTokens").value(0))
@@ -79,6 +84,7 @@ class UsageControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                    "modelId": "fast-model",
                                     "promptTokens": 1000,
                                     "completionTokens": 500
                                 }
@@ -97,6 +103,7 @@ class UsageControllerTest {
                         .content("""
                                 {
                                     "customerId": "CUST-001",
+                                    "modelId": "fast-model",
                                     "promptTokens": -100,
                                     "completionTokens": 500
                                 }
@@ -115,6 +122,7 @@ class UsageControllerTest {
                         .content("""
                                 {
                                     "customerId": "CUST-001",
+                                    "modelId": "fast-model",
                                     "promptTokens": 1000,
                                     "completionTokens": -500
                                 }
@@ -133,6 +141,7 @@ class UsageControllerTest {
                         .content("""
                                 {
                                     "customerId": "CUST-001",
+                                    "modelId": "fast-model",
                                     "completionTokens": 500
                                 }
                                 """))
@@ -152,6 +161,7 @@ class UsageControllerTest {
                         .content("""
                                 {
                                     "customerId": "INVALID-CUSTOMER",
+                                    "modelId": "fast-model",
                                     "promptTokens": 1000,
                                     "completionTokens": 500
                                 }
@@ -171,6 +181,7 @@ class UsageControllerTest {
                         .content("""
                                 {
                                     "customerId": "CUST-NO-SUB",
+                                    "modelId": "fast-model",
                                     "promptTokens": 1000,
                                     "completionTokens": 500
                                 }

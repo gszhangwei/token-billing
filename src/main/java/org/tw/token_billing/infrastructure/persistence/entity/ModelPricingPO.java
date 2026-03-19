@@ -2,6 +2,7 @@ package org.tw.token_billing.infrastructure.persistence.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,29 +15,32 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "pricing_plans")
+@Table(name = "model_pricing")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PricingPlanPO {
+public class ModelPricingPO {
 
     @Id
-    @Column(name = "id", length = 50)
-    private String id;
+    @Column(name = "id")
+    private UUID id;
 
-    @Column(name = "name", length = 100, nullable = false)
-    private String name;
+    @Column(name = "plan_id", length = 50, nullable = false)
+    private String planId;
 
-    @Column(name = "monthly_quota", nullable = false)
-    private Integer monthlyQuota;
+    @Column(name = "model_id", length = 50, nullable = false)
+    private String modelId;
 
-    @Column(name = "overage_rate_per_1k", precision = 10, scale = 4, nullable = false)
+    @Column(name = "overage_rate_per_1k", precision = 10, scale = 4)
     private BigDecimal overageRatePer1k;
 
-    @Column(name = "plan_type", length = 20, nullable = false)
-    private String planType;
+    @Column(name = "prompt_rate_per_1k", precision = 10, scale = 4)
+    private BigDecimal promptRatePer1k;
+
+    @Column(name = "completion_rate_per_1k", precision = 10, scale = 4)
+    private BigDecimal completionRatePer1k;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

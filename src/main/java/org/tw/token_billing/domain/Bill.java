@@ -20,16 +20,25 @@ public class Bill {
 
     private final UUID id;
     private final String customerId;
+    private final String modelId;
     private final Integer promptTokens;
     private final Integer completionTokens;
     private final Integer totalTokens;
     private final Integer includedTokensUsed;
     private final Integer overageTokens;
+    private final BigDecimal promptCharge;
+    private final BigDecimal completionCharge;
     private final BigDecimal totalCharge;
     private final LocalDateTime calculatedAt;
 
+    @Deprecated
     public static Bill create(String customerId, int promptTokens, int completionTokens,
                               int remainingQuota, BigDecimal overageRatePer1k) {
+        return createStandard(customerId, null, promptTokens, completionTokens, remainingQuota, overageRatePer1k);
+    }
+
+    public static Bill createStandard(String customerId, String modelId, int promptTokens, int completionTokens,
+                                      int remainingQuota, BigDecimal overageRatePer1k) {
         int totalTokens = promptTokens + completionTokens;
         int includedTokensUsed = Math.min(totalTokens, Math.max(remainingQuota, 0));
         int overageTokens = totalTokens - includedTokensUsed;
@@ -42,11 +51,46 @@ public class Bill {
         return Bill.builder()
                 .id(UUID.randomUUID())
                 .customerId(customerId)
+                .modelId(modelId)
                 .promptTokens(promptTokens)
                 .completionTokens(completionTokens)
                 .totalTokens(totalTokens)
                 .includedTokensUsed(includedTokensUsed)
                 .overageTokens(overageTokens)
+                .promptCharge(null)
+                .completionCharge(null)
+                .totalCharge(totalCharge)
+                .calculatedAt(LocalDateTime.now(ZoneOffset.UTC))
+                .build();
+    }
+
+    public static Bill createPremium(String customerId, String modelId, int promptTokens, int completionTokens,
+                                     BigDecimal promptRatePer1k, BigDecimal completionRatePer1k) {
+        int totalTokens = promptTokens + completionTokens;
+
+        BigDecimal promptCharge = BigDecimal.valueOf(promptTokens)
+                .divide(BigDecimal.valueOf(TOKENS_PER_PRICING_UNIT), CALCULATION_PRECISION_SCALE, RoundingMode.HALF_UP)
+                .multiply(promptRatePer1k)
+                .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
+
+        BigDecimal completionCharge = BigDecimal.valueOf(completionTokens)
+                .divide(BigDecimal.valueOf(TOKENS_PER_PRICING_UNIT), CALCULATION_PRECISION_SCALE, RoundingMode.HALF_UP)
+                .multiply(completionRatePer1k)
+                .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
+
+        BigDecimal totalCharge = promptCharge.add(completionCharge);
+
+        return Bill.builder()
+                .id(UUID.randomUUID())
+                .customerId(customerId)
+                .modelId(modelId)
+                .promptTokens(promptTokens)
+                .completionTokens(completionTokens)
+                .totalTokens(totalTokens)
+                .includedTokensUsed(0)
+                .overageTokens(0)
+                .promptCharge(promptCharge)
+                .completionCharge(completionCharge)
                 .totalCharge(totalCharge)
                 .calculatedAt(LocalDateTime.now(ZoneOffset.UTC))
                 .build();

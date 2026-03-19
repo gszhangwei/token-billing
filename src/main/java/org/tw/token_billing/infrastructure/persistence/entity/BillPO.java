@@ -30,6 +30,9 @@ public class BillPO {
     @Column(name = "customer_id", length = 50, nullable = false)
     private String customerId;
 
+    @Column(name = "model_id", length = 50)
+    private String modelId;
+
     @Column(name = "prompt_tokens", nullable = false)
     private Integer promptTokens;
 
@@ -44,6 +47,12 @@ public class BillPO {
 
     @Column(name = "overage_tokens", nullable = false)
     private Integer overageTokens;
+
+    @Column(name = "prompt_charge", precision = 10, scale = 2)
+    private BigDecimal promptCharge;
+
+    @Column(name = "completion_charge", precision = 10, scale = 2)
+    private BigDecimal completionCharge;
 
     @Column(name = "total_charge", precision = 10, scale = 2, nullable = false)
     private BigDecimal totalCharge;

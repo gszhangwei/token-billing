@@ -25,6 +25,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.tw.token_billing.domain.Bill;
 import org.tw.token_billing.domain.Customer;
 import org.tw.token_billing.domain.CustomerSubscription;
+import org.tw.token_billing.domain.ModelPricing;
+import org.tw.token_billing.domain.PlanType;
 import org.tw.token_billing.domain.PricingPlan;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.exception.CustomerNotFoundException;
@@ -32,6 +34,9 @@ import org.tw.token_billing.exception.NoActiveSubscriptionException;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
+import org.tw.token_billing.repository.ModelPricingRepository;
+import org.tw.token_billing.service.strategy.BillingStrategyFactory;
+import org.tw.token_billing.service.strategy.StandardBillingStrategy;
 
 @ExtendWith(MockitoExtension.class)
 class BillingServiceImplTest {
@@ -45,12 +50,20 @@ class BillingServiceImplTest {
     @Mock
     private BillRepository billRepository;
 
+    @Mock
+    private ModelPricingRepository modelPricingRepository;
+
+    @Mock
+    private BillingStrategyFactory billingStrategyFactory;
+
     @InjectMocks
     private BillingServiceImpl billingService;
 
     private Customer customer;
     private PricingPlan pricingPlan;
     private CustomerSubscription subscription;
+    private ModelPricing modelPricing;
+    private static final String MODEL_ID = "fast-model";
 
     @BeforeEach
     void setUp() {
@@ -63,6 +76,7 @@ class BillingServiceImplTest {
         pricingPlan = PricingPlan.builder()
                 .id("PLAN-STARTER")
                 .name("Starter Plan")
+                .planType(PlanType.STANDARD)
                 .monthlyQuota(100000)
                 .overageRatePer1k(new BigDecimal("0.02"))
                 .createdAt(LocalDateTime.now())
@@ -76,6 +90,14 @@ class BillingServiceImplTest {
                 .effectiveTo(null)
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        modelPricing = ModelPricing.builder()
+                .id(UUID.randomUUID())
+                .planId("PLAN-STARTER")
+                .modelId(MODEL_ID)
+                .overageRatePer1k(new BigDecimal("0.02"))
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 
     @Test
@@ -83,6 +105,7 @@ class BillingServiceImplTest {
     void should_return_bill_with_zero_charge_when_calculate_bill_given_usage_within_quota() {
         UsageRequest request = UsageRequest.builder()
                 .customerId("CUST-001")
+                .modelId(MODEL_ID)
                 .promptTokens(1000)
                 .completionTokens(500)
                 .build();
@@ -90,6 +113,9 @@ class BillingServiceImplTest {
         when(customerRepository.findById("CUST-001")).thenReturn(Optional.of(customer));
         when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-001"), any(LocalDate.class)))
                 .thenReturn(Optional.of(subscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-STARTER", MODEL_ID))
+                .thenReturn(Optional.of(modelPricing));
+        when(billingStrategyFactory.getStrategy(PlanType.STANDARD)).thenReturn(new StandardBillingStrategy());
         when(billRepository.sumIncludedTokensUsedForMonth(eq("CUST-001"), any(), any())).thenReturn(0);
         when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -112,6 +138,7 @@ class BillingServiceImplTest {
         PricingPlan smallQuotaPlan = PricingPlan.builder()
                 .id("PLAN-FREE")
                 .name("Free Plan")
+                .planType(PlanType.STANDARD)
                 .monthlyQuota(10000)
                 .overageRatePer1k(new BigDecimal("0.02"))
                 .createdAt(LocalDateTime.now())
@@ -126,8 +153,17 @@ class BillingServiceImplTest {
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        ModelPricing smallPlanModelPricing = ModelPricing.builder()
+                .id(UUID.randomUUID())
+                .planId("PLAN-FREE")
+                .modelId(MODEL_ID)
+                .overageRatePer1k(new BigDecimal("0.02"))
+                .createdAt(LocalDateTime.now())
+                .build();
+
         UsageRequest request = UsageRequest.builder()
                 .customerId("CUST-001")
+                .modelId(MODEL_ID)
                 .promptTokens(8000)
                 .completionTokens(5000)
                 .build();
@@ -135,6 +171,9 @@ class BillingServiceImplTest {
         when(customerRepository.findById("CUST-001")).thenReturn(Optional.of(customer));
         when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-001"), any(LocalDate.class)))
                 .thenReturn(Optional.of(smallQuotaSubscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-FREE", MODEL_ID))
+                .thenReturn(Optional.of(smallPlanModelPricing));
+        when(billingStrategyFactory.getStrategy(PlanType.STANDARD)).thenReturn(new StandardBillingStrategy());
         when(billRepository.sumIncludedTokensUsedForMonth(eq("CUST-001"), any(), any())).thenReturn(0);
         when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -151,6 +190,7 @@ class BillingServiceImplTest {
     void should_return_bill_with_full_overage_when_calculate_bill_given_zero_remaining_quota() {
         UsageRequest request = UsageRequest.builder()
                 .customerId("CUST-001")
+                .modelId(MODEL_ID)
                 .promptTokens(1000)
                 .completionTokens(500)
                 .build();
@@ -158,6 +198,9 @@ class BillingServiceImplTest {
         when(customerRepository.findById("CUST-001")).thenReturn(Optional.of(customer));
         when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-001"), any(LocalDate.class)))
                 .thenReturn(Optional.of(subscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-STARTER", MODEL_ID))
+                .thenReturn(Optional.of(modelPricing));
+        when(billingStrategyFactory.getStrategy(PlanType.STANDARD)).thenReturn(new StandardBillingStrategy());
         when(billRepository.sumIncludedTokensUsedForMonth(eq("CUST-001"), any(), any())).thenReturn(100000);
         when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -173,6 +216,7 @@ class BillingServiceImplTest {
     void should_return_bill_with_zero_tokens_when_calculate_bill_given_zero_usage() {
         UsageRequest request = UsageRequest.builder()
                 .customerId("CUST-001")
+                .modelId(MODEL_ID)
                 .promptTokens(0)
                 .completionTokens(0)
                 .build();
@@ -180,6 +224,9 @@ class BillingServiceImplTest {
         when(customerRepository.findById("CUST-001")).thenReturn(Optional.of(customer));
         when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-001"), any(LocalDate.class)))
                 .thenReturn(Optional.of(subscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-STARTER", MODEL_ID))
+                .thenReturn(Optional.of(modelPricing));
+        when(billingStrategyFactory.getStrategy(PlanType.STANDARD)).thenReturn(new StandardBillingStrategy());
         when(billRepository.sumIncludedTokensUsedForMonth(eq("CUST-001"), any(), any())).thenReturn(0);
         when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -196,6 +243,7 @@ class BillingServiceImplTest {
     void should_throw_customer_not_found_exception_when_calculate_bill_given_invalid_customer_id() {
         UsageRequest request = UsageRequest.builder()
                 .customerId("INVALID-CUSTOMER")
+                .modelId(MODEL_ID)
                 .promptTokens(1000)
                 .completionTokens(500)
                 .build();
@@ -214,6 +262,7 @@ class BillingServiceImplTest {
     void should_throw_no_active_subscription_exception_when_calculate_bill_given_customer_without_subscription() {
         UsageRequest request = UsageRequest.builder()
                 .customerId("CUST-001")
+                .modelId(MODEL_ID)
                 .promptTokens(1000)
                 .completionTokens(500)
                 .build();
@@ -234,6 +283,7 @@ class BillingServiceImplTest {
     void should_use_correct_month_boundaries_when_calculate_bill_given_mid_month_request() {
         UsageRequest request = UsageRequest.builder()
                 .customerId("CUST-001")
+                .modelId(MODEL_ID)
                 .promptTokens(1000)
                 .completionTokens(500)
                 .build();
@@ -241,6 +291,9 @@ class BillingServiceImplTest {
         when(customerRepository.findById("CUST-001")).thenReturn(Optional.of(customer));
         when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-001"), any(LocalDate.class)))
                 .thenReturn(Optional.of(subscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-STARTER", MODEL_ID))
+                .thenReturn(Optional.of(modelPricing));
+        when(billingStrategyFactory.getStrategy(PlanType.STANDARD)).thenReturn(new StandardBillingStrategy());
         when(billRepository.sumIncludedTokensUsedForMonth(eq("CUST-001"), any(), any())).thenReturn(0);
         when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

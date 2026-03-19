@@ -7,15 +7,21 @@ import java.time.ZoneOffset;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tw.token_billing.domain.Bill;
+import org.tw.token_billing.domain.BillingContext;
 import org.tw.token_billing.domain.CustomerSubscription;
+import org.tw.token_billing.domain.ModelPricing;
 import org.tw.token_billing.domain.PricingPlan;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.ModelPricingNotFoundException;
 import org.tw.token_billing.exception.NoActiveSubscriptionException;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
+import org.tw.token_billing.repository.ModelPricingRepository;
 import org.tw.token_billing.service.BillingService;
+import org.tw.token_billing.service.strategy.BillingStrategy;
+import org.tw.token_billing.service.strategy.BillingStrategyFactory;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,25 +35,33 @@ public class BillingServiceImpl implements BillingService {
     private final CustomerRepository customerRepository;
     private final CustomerSubscriptionRepository customerSubscriptionRepository;
     private final BillRepository billRepository;
+    private final ModelPricingRepository modelPricingRepository;
+    private final BillingStrategyFactory billingStrategyFactory;
 
     @Override
     public Bill calculateBill(UsageRequest request) {
         String customerId = request.getCustomerId();
+        String modelId = request.getModelId();
 
         validateCustomerExists(customerId);
         PricingPlan plan = resolveActivePricingPlan(customerId);
+        ModelPricing modelPricing = resolveModelPricing(plan.getId(), modelId);
         int remainingQuota = calculateRemainingQuota(customerId, plan);
 
-        Bill bill = Bill.create(
-                customerId,
-                request.getPromptTokens(),
-                request.getCompletionTokens(),
-                remainingQuota,
-                plan.getOverageRatePer1k()
-        );
+        BillingContext context = BillingContext.builder()
+                .customerId(customerId)
+                .modelId(modelId)
+                .promptTokens(request.getPromptTokens())
+                .completionTokens(request.getCompletionTokens())
+                .remainingQuota(remainingQuota)
+                .modelPricing(modelPricing)
+                .build();
 
-        log.info("Calculated bill for customer {}: totalTokens={}, includedTokensUsed={}, overageTokens={}, totalCharge={}",
-                customerId, bill.getTotalTokens(), bill.getIncludedTokensUsed(),
+        BillingStrategy strategy = billingStrategyFactory.getStrategy(plan.getPlanType());
+        Bill bill = strategy.calculate(context);
+
+        log.info("Calculated bill for customer {}: model={}, planType={}, totalTokens={}, includedTokensUsed={}, overageTokens={}, totalCharge={}",
+                customerId, modelId, plan.getPlanType(), bill.getTotalTokens(), bill.getIncludedTokensUsed(),
                 bill.getOverageTokens(), bill.getTotalCharge());
 
         return billRepository.save(bill);
@@ -68,7 +82,16 @@ public class BillingServiceImpl implements BillingService {
         return subscription.getPlan();
     }
 
+    private ModelPricing resolveModelPricing(String planId, String modelId) {
+        return modelPricingRepository.findByPlanIdAndModelId(planId, modelId)
+                .orElseThrow(() -> new ModelPricingNotFoundException(planId, modelId));
+    }
+
     private int calculateRemainingQuota(String customerId, PricingPlan plan) {
+        if (plan.getMonthlyQuota() == null || plan.getMonthlyQuota() == 0) {
+            return 0;
+        }
+
         LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
         LocalDateTime monthStart = currentDate.withDayOfMonth(1).atStartOfDay();
         LocalDateTime monthEnd = currentDate.plusMonths(1).withDayOfMonth(1).atStartOfDay();

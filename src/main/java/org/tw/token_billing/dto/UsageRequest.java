@@ -18,6 +18,9 @@ public class UsageRequest {
     @NotNull(message = "Customer ID is required")
     private String customerId;
 
+    @NotNull(message = "Model ID is required")
+    private String modelId;
+
     @NotNull(message = "Token count cannot be negative")
     @Min(value = 0, message = "Token count cannot be negative")
     private Integer promptTokens;

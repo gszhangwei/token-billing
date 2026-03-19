@@ -49,4 +49,11 @@ public class GlobalExceptionHandler {
         ErrorResponse errorResponse = ErrorResponse.of("BAD_REQUEST", message);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
+
+    @ExceptionHandler(ModelPricingNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleModelPricingNotFoundException(ModelPricingNotFoundException ex) {
+        log.error("Model pricing not found: planId={}, modelId={}", ex.getPlanId(), ex.getModelId());
+        ErrorResponse errorResponse = ErrorResponse.of("BAD_REQUEST", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
 }

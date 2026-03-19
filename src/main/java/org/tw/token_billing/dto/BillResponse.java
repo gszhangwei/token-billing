@@ -20,9 +20,12 @@ import lombok.Setter;
 public class BillResponse {
     private UUID billId;
     private String customerId;
+    private String modelId;
     private Integer totalTokens;
     private Integer includedTokensUsed;
     private Integer overageTokens;
+    private BigDecimal promptCharge;
+    private BigDecimal completionCharge;
     private BigDecimal totalCharge;
     private LocalDateTime calculatedAt;
 
@@ -30,9 +33,12 @@ public class BillResponse {
         return BillResponse.builder()
                 .billId(bill.getId())
                 .customerId(bill.getCustomerId())
+                .modelId(bill.getModelId())
                 .totalTokens(bill.getTotalTokens())
                 .includedTokensUsed(bill.getIncludedTokensUsed())
                 .overageTokens(bill.getOverageTokens())
+                .promptCharge(bill.getPromptCharge())
+                .completionCharge(bill.getCompletionCharge())
                 .totalCharge(bill.getTotalCharge())
                 .calculatedAt(bill.getCalculatedAt())
                 .build();

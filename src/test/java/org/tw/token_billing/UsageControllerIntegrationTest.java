@@ -39,6 +39,7 @@ class UsageControllerIntegrationTest {
                         .content("""
                                 {
                                     "customerId": "CUST-001",
+                                    "modelId": "fast-model",
                                     "promptTokens": 1000,
                                     "completionTokens": 500
                                 }
@@ -46,6 +47,7 @@ class UsageControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.billId").exists())
                 .andExpect(jsonPath("$.customerId").value("CUST-001"))
+                .andExpect(jsonPath("$.modelId").value("fast-model"))
                 .andExpect(jsonPath("$.totalTokens").value(1500))
                 .andExpect(jsonPath("$.includedTokensUsed").exists())
                 .andExpect(jsonPath("$.overageTokens").exists())
@@ -65,6 +67,7 @@ class UsageControllerIntegrationTest {
                         .content("""
                                 {
                                     "customerId": "NON-EXISTENT-CUSTOMER",
+                                    "modelId": "fast-model",
                                     "promptTokens": 1000,
                                     "completionTokens": 500
                                 }
@@ -90,6 +93,7 @@ class UsageControllerIntegrationTest {
                         .content("""
                                 {
                                     "customerId": "CUST-002",
+                                    "modelId": "fast-model",
                                     "promptTokens": 5000,
                                     "completionTokens": 3000
                                 }
@@ -106,6 +110,7 @@ class UsageControllerIntegrationTest {
                         .content("""
                                 {
                                     "customerId": "CUST-002",
+                                    "modelId": "fast-model",
                                     "promptTokens": 5000,
                                     "completionTokens": 3000
                                 }
@@ -130,6 +135,7 @@ class UsageControllerIntegrationTest {
                             .content("""
                                     {
                                         "customerId": "CUST-002",
+                                        "modelId": "fast-model",
                                         "promptTokens": 4000,
                                         "completionTokens": 2000
                                     }
@@ -142,6 +148,7 @@ class UsageControllerIntegrationTest {
                         .content("""
                                 {
                                     "customerId": "CUST-002",
+                                    "modelId": "fast-model",
                                     "promptTokens": 3000,
                                     "completionTokens": 2000
                                 }
