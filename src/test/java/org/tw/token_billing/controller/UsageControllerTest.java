@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.tw.token_billing.domain.Bill;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.ModelPricingNotFoundException;
 import org.tw.token_billing.exception.NoActiveSubscriptionException;
 import org.tw.token_billing.service.BillingService;
 
@@ -188,5 +189,82 @@ class UsageControllerTest {
                                 """))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.message").value("No active subscription found"));
+    }
+
+    @Test
+    @DisplayName("Should return 201 with charge breakdown when submitting valid premium plan request")
+    void should_return_201_with_charge_breakdown_when_submit_usage_given_valid_premium_plan_request() throws Exception {
+        Bill bill = Bill.builder()
+                .id(UUID.randomUUID())
+                .customerId("CUST-PREMIUM")
+                .modelId("reasoning-model")
+                .promptTokens(10000)
+                .completionTokens(20000)
+                .totalTokens(30000)
+                .includedTokensUsed(0)
+                .overageTokens(0)
+                .promptCharge(new BigDecimal("0.30"))
+                .completionCharge(new BigDecimal("1.20"))
+                .totalCharge(new BigDecimal("1.50"))
+                .calculatedAt(LocalDateTime.now())
+                .build();
+
+        when(billingService.calculateBill(any(UsageRequest.class))).thenReturn(bill);
+
+        mockMvc.perform(post("/api/usage")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "customerId": "CUST-PREMIUM",
+                                    "modelId": "reasoning-model",
+                                    "promptTokens": 10000,
+                                    "completionTokens": 20000
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.promptCharge").value(0.30))
+                .andExpect(jsonPath("$.completionCharge").value(1.20))
+                .andExpect(jsonPath("$.includedTokensUsed").value(0))
+                .andExpect(jsonPath("$.overageTokens").value(0));
+
+        verify(billingService).calculateBill(any(UsageRequest.class));
+    }
+
+    @Test
+    @DisplayName("Should return 400 Bad Request when modelId is missing")
+    void should_return_400_bad_request_when_submit_usage_given_missing_model_id() throws Exception {
+        mockMvc.perform(post("/api/usage")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "customerId": "CUST-001",
+                                    "promptTokens": 1000,
+                                    "completionTokens": 500
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Model ID is required"));
+
+        verify(billingService, never()).calculateBill(any());
+    }
+
+    @Test
+    @DisplayName("Should return 400 Bad Request when model pricing is not configured")
+    void should_return_400_bad_request_when_submit_usage_given_unknown_model_id() throws Exception {
+        when(billingService.calculateBill(any(UsageRequest.class)))
+                .thenThrow(new ModelPricingNotFoundException("PLAN-STARTER", "unknown-model"));
+
+        mockMvc.perform(post("/api/usage")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "customerId": "CUST-001",
+                                    "modelId": "unknown-model",
+                                    "promptTokens": 1000,
+                                    "completionTokens": 500
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Pricing not configured for model: unknown-model"));
     }
 }

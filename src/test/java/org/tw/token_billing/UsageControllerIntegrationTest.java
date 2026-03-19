@@ -164,4 +164,36 @@ class UsageControllerIntegrationTest {
             assertThat(totalCharge).isGreaterThan(BigDecimal.ZERO);
         }
     }
+
+    @Test
+    @DisplayName("Should return 201 with premium billing when submitting usage for premium customer")
+    void should_return_201_with_premium_billing_when_submit_usage_given_premium_customer() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/usage")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "customerId": "CUST-PREMIUM",
+                                    "modelId": "reasoning-model",
+                                    "promptTokens": 10000,
+                                    "completionTokens": 20000
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.billId").exists())
+                .andExpect(jsonPath("$.customerId").value("CUST-PREMIUM"))
+                .andExpect(jsonPath("$.modelId").value("reasoning-model"))
+                .andExpect(jsonPath("$.totalTokens").value(30000))
+                .andExpect(jsonPath("$.includedTokensUsed").value(0))
+                .andExpect(jsonPath("$.overageTokens").value(0))
+                .andExpect(jsonPath("$.promptCharge").value(0.30))
+                .andExpect(jsonPath("$.completionCharge").value(1.20))
+                .andExpect(jsonPath("$.totalCharge").value(1.50))
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(response.get("billId").asText()).isNotEmpty();
+        assertThat(new BigDecimal(response.get("promptCharge").asText())).isEqualByComparingTo(new BigDecimal("0.30"));
+        assertThat(new BigDecimal(response.get("completionCharge").asText())).isEqualByComparingTo(new BigDecimal("1.20"));
+        assertThat(new BigDecimal(response.get("totalCharge").asText())).isEqualByComparingTo(new BigDecimal("1.50"));
+    }
 }

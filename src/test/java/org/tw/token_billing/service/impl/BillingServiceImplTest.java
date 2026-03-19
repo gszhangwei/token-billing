@@ -30,12 +30,14 @@ import org.tw.token_billing.domain.PlanType;
 import org.tw.token_billing.domain.PricingPlan;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.ModelPricingNotFoundException;
 import org.tw.token_billing.exception.NoActiveSubscriptionException;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
 import org.tw.token_billing.repository.ModelPricingRepository;
 import org.tw.token_billing.service.strategy.BillingStrategyFactory;
+import org.tw.token_billing.service.strategy.PremiumBillingStrategy;
 import org.tw.token_billing.service.strategy.StandardBillingStrategy;
 
 @ExtendWith(MockitoExtension.class)
@@ -321,5 +323,148 @@ class BillingServiceImplTest {
         assertThat(monthEnd.getMinute()).isEqualTo(0);
         assertThat(monthEnd.getSecond()).isEqualTo(0);
         assertThat(monthEnd.getMonth()).isEqualTo(monthStart.getMonth().plus(1));
+    }
+
+    @Test
+    @DisplayName("Should return bill with split charges when calculating bill for premium plan")
+    void should_return_bill_with_split_charges_when_calculate_bill_given_premium_plan_usage() {
+        PricingPlan premiumPlan = PricingPlan.builder()
+                .id("PLAN-PREMIUM")
+                .name("Premium Plan")
+                .planType(PlanType.PREMIUM)
+                .monthlyQuota(0)
+                .overageRatePer1k(BigDecimal.ZERO)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        CustomerSubscription premiumSubscription = CustomerSubscription.builder()
+                .id(UUID.randomUUID())
+                .customerId("CUST-PREMIUM")
+                .plan(premiumPlan)
+                .effectiveFrom(LocalDate.of(2026, 1, 1))
+                .effectiveTo(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        ModelPricing premiumModelPricing = ModelPricing.builder()
+                .id(UUID.randomUUID())
+                .planId("PLAN-PREMIUM")
+                .modelId("reasoning-model")
+                .promptRatePer1k(new BigDecimal("0.03"))
+                .completionRatePer1k(new BigDecimal("0.06"))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Customer premiumCustomer = Customer.builder()
+                .id("CUST-PREMIUM")
+                .name("Premium Customer")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UsageRequest request = UsageRequest.builder()
+                .customerId("CUST-PREMIUM")
+                .modelId("reasoning-model")
+                .promptTokens(10000)
+                .completionTokens(20000)
+                .build();
+
+        when(customerRepository.findById("CUST-PREMIUM")).thenReturn(Optional.of(premiumCustomer));
+        when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-PREMIUM"), any(LocalDate.class)))
+                .thenReturn(Optional.of(premiumSubscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-PREMIUM", "reasoning-model"))
+                .thenReturn(Optional.of(premiumModelPricing));
+        when(billingStrategyFactory.getStrategy(PlanType.PREMIUM)).thenReturn(new PremiumBillingStrategy());
+        when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Bill result = billingService.calculateBill(request);
+
+        assertThat(result.getIncludedTokensUsed()).isEqualTo(0);
+        assertThat(result.getOverageTokens()).isEqualTo(0);
+        assertThat(result.getPromptCharge()).isEqualByComparingTo(new BigDecimal("0.30"));
+        assertThat(result.getCompletionCharge()).isEqualByComparingTo(new BigDecimal("1.20"));
+        assertThat(result.getTotalCharge()).isEqualByComparingTo(new BigDecimal("1.50"));
+
+        verify(billingStrategyFactory).getStrategy(PlanType.PREMIUM);
+        verify(billRepository, never()).sumIncludedTokensUsedForMonth(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Should throw ModelPricingNotFoundException when model pricing is not configured")
+    void should_throw_model_pricing_not_found_exception_when_calculate_bill_given_unknown_model() {
+        UsageRequest request = UsageRequest.builder()
+                .customerId("CUST-001")
+                .modelId("unknown-model")
+                .promptTokens(1000)
+                .completionTokens(500)
+                .build();
+
+        when(customerRepository.findById("CUST-001")).thenReturn(Optional.of(customer));
+        when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-001"), any(LocalDate.class)))
+                .thenReturn(Optional.of(subscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-STARTER", "unknown-model"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> billingService.calculateBill(request))
+                .isInstanceOf(ModelPricingNotFoundException.class)
+                .hasMessageContaining("unknown-model");
+
+        verify(billRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should not query quota usage when calculating bill for premium plan with zero quota")
+    void should_return_zero_remaining_quota_when_calculate_bill_given_premium_plan() {
+        PricingPlan premiumPlan = PricingPlan.builder()
+                .id("PLAN-PREMIUM")
+                .name("Premium Plan")
+                .planType(PlanType.PREMIUM)
+                .monthlyQuota(0)
+                .overageRatePer1k(BigDecimal.ZERO)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        CustomerSubscription premiumSubscription = CustomerSubscription.builder()
+                .id(UUID.randomUUID())
+                .customerId("CUST-PREMIUM")
+                .plan(premiumPlan)
+                .effectiveFrom(LocalDate.of(2026, 1, 1))
+                .effectiveTo(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        ModelPricing premiumModelPricing = ModelPricing.builder()
+                .id(UUID.randomUUID())
+                .planId("PLAN-PREMIUM")
+                .modelId("fast-model")
+                .promptRatePer1k(new BigDecimal("0.01"))
+                .completionRatePer1k(new BigDecimal("0.02"))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Customer premiumCustomer = Customer.builder()
+                .id("CUST-PREMIUM")
+                .name("Premium Customer")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UsageRequest request = UsageRequest.builder()
+                .customerId("CUST-PREMIUM")
+                .modelId("fast-model")
+                .promptTokens(5000)
+                .completionTokens(3000)
+                .build();
+
+        when(customerRepository.findById("CUST-PREMIUM")).thenReturn(Optional.of(premiumCustomer));
+        when(customerSubscriptionRepository.findActiveSubscription(eq("CUST-PREMIUM"), any(LocalDate.class)))
+                .thenReturn(Optional.of(premiumSubscription));
+        when(modelPricingRepository.findByPlanIdAndModelId("PLAN-PREMIUM", "fast-model"))
+                .thenReturn(Optional.of(premiumModelPricing));
+        when(billingStrategyFactory.getStrategy(PlanType.PREMIUM)).thenReturn(new PremiumBillingStrategy());
+        when(billRepository.save(any(Bill.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        billingService.calculateBill(request);
+
+        verify(billRepository, never()).sumIncludedTokensUsedForMonth(any(), any(), any());
+        verify(billingStrategyFactory).getStrategy(PlanType.PREMIUM);
     }
 }
