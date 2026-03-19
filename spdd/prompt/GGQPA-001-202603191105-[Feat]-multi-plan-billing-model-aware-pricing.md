@@ -562,25 +562,35 @@ classDiagram
 
 1. Responsibility: Orchestrate strategy-based billing
 2. Location: `service/impl/BillingServiceImpl.java`
-3. Changes:
+3. Constants:
+   - `NO_QUOTA = 0` - Represents no quota or zero quota for Premium plans
+   - `FIRST_DAY_OF_MONTH = 1` - First day for monthly billing period calculation
+   - `ONE_MONTH = 1` - Increment for calculating next month boundary
+4. Changes:
    - Add dependency: `ModelPricingRepository` (injected via constructor)
    - Add dependency: `BillingStrategyFactory` (injected via constructor)
-4. Updated `calculateBill(UsageRequest request)` method:
+5. Updated `calculateBill(UsageRequest request)` method:
    - Logic:
      1. Extract customerId, modelId, promptTokens, completionTokens from request
      2. Call `validateCustomerExists(customerId)`
      3. Call `resolveActivePricingPlan(customerId)` → get PricingPlan with planType
      4. Call `resolveModelPricing(plan.getId(), modelId)` → get ModelPricing
-     5. Call `calculateRemainingQuota(customerId, plan)` → get remainingQuota (returns 0 for Premium)
+     5. Call `calculateRemainingQuota(customerId, plan)` → get remainingQuota (returns NO_QUOTA for Premium)
      6. Build `BillingContext` with all data
      7. Get strategy via `billingStrategyFactory.getStrategy(plan.getPlanType())`
      8. Call `strategy.calculate(context)` → get Bill
      9. Log billing result
      10. Save and return Bill
-5. New private method `resolveModelPricing(String planId, String modelId)`: ModelPricing
+6. New private method `resolveModelPricing(String planId, String modelId)`: ModelPricing
    - Logic: Query ModelPricingRepository, throw ModelPricingNotFoundException if not found
-6. Update `calculateRemainingQuota()`:
-   - If plan.monthlyQuota == 0, return 0 (Premium plans have no quota)
+7. Update `calculateRemainingQuota(String customerId, PricingPlan plan)`:
+   - Logic:
+     1. If plan.monthlyQuota is null or equals NO_QUOTA, return NO_QUOTA (Premium plans have no quota)
+     2. Get current date in UTC
+     3. Calculate monthStart using FIRST_DAY_OF_MONTH
+     4. Calculate monthEnd using plusMonths(ONE_MONTH) and FIRST_DAY_OF_MONTH
+     5. Query billRepository for current month usage
+     6. Return plan.monthlyQuota - currentMonthUsage
 
 ## Norms
 
@@ -625,6 +635,11 @@ classDiagram
    - Intermediate calculations: scale 10, RoundingMode.HALF_UP
    - Final charges: scale 2, RoundingMode.HALF_UP
    - Same precision rules apply to all strategies
+
+9. **Named Constants**:
+   - Use `private static final` constants for magic numbers
+   - Constants should have descriptive names reflecting their purpose (e.g., `NO_QUOTA`, `FIRST_DAY_OF_MONTH`)
+   - Prefer constants over inline literals for values used in business logic
 
 ## Safeguards
 

@@ -32,6 +32,10 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class BillingServiceImpl implements BillingService {
 
+    private static final int NO_QUOTA = 0;
+    private static final int FIRST_DAY_OF_MONTH = 1;
+    private static final int ONE_MONTH = 1;
+
     private final CustomerRepository customerRepository;
     private final CustomerSubscriptionRepository customerSubscriptionRepository;
     private final BillRepository billRepository;
@@ -88,13 +92,13 @@ public class BillingServiceImpl implements BillingService {
     }
 
     private int calculateRemainingQuota(String customerId, PricingPlan plan) {
-        if (plan.getMonthlyQuota() == null || plan.getMonthlyQuota() == 0) {
-            return 0;
+        if (plan.getMonthlyQuota() == null || plan.getMonthlyQuota() == NO_QUOTA) {
+            return NO_QUOTA;
         }
 
         LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
-        LocalDateTime monthStart = currentDate.withDayOfMonth(1).atStartOfDay();
-        LocalDateTime monthEnd = currentDate.plusMonths(1).withDayOfMonth(1).atStartOfDay();
+        LocalDateTime monthStart = currentDate.withDayOfMonth(FIRST_DAY_OF_MONTH).atStartOfDay();
+        LocalDateTime monthEnd = currentDate.plusMonths(ONE_MONTH).withDayOfMonth(FIRST_DAY_OF_MONTH).atStartOfDay();
 
         Integer currentMonthUsage = billRepository.sumIncludedTokensUsedForMonth(customerId, monthStart, monthEnd);
         return plan.getMonthlyQuota() - currentMonthUsage;
