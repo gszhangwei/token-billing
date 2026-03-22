@@ -30,7 +30,7 @@ public class BillPO {
     @Column(name = "customer_id", length = 50, nullable = false)
     private String customerId;
 
-    @Column(name = "model_id", length = 50)
+    @Column(name = "model_id", length = 50, nullable = false)
     private String modelId;
 
     @Column(name = "prompt_tokens", nullable = false)

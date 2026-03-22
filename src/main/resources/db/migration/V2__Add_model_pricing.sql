@@ -14,7 +14,7 @@ CREATE TABLE model_pricing (
 );
 
 -- Add model_id and charge breakdown to bills
-ALTER TABLE bills ADD COLUMN model_id VARCHAR(50);
+ALTER TABLE bills ADD COLUMN model_id VARCHAR(50) NOT NULL DEFAULT 'fast-model';
 ALTER TABLE bills ADD COLUMN prompt_charge DECIMAL(10, 2);
 ALTER TABLE bills ADD COLUMN completion_charge DECIMAL(10, 2);
 
