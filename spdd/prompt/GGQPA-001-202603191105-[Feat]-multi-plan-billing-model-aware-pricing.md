@@ -132,7 +132,7 @@ classDiagram
 1. **Schema Evolution**:
    - Add `plan_type VARCHAR(20)` column to `pricing_plans` table with default 'STANDARD'
    - Create `model_pricing` table for model-specific rates per plan
-   - Add `model_id VARCHAR(50)`, `prompt_charge DECIMAL(10,2)`, `completion_charge DECIMAL(10,2)` columns to `bills` table (nullable for backward compatibility)
+   - Add `model_id VARCHAR(50) NOT NULL DEFAULT 'fast-model'`, `prompt_charge DECIMAL(10,2)`, `completion_charge DECIMAL(10,2)` columns to `bills` table
    - Migrate existing pricing plans to have explicit model pricing entries
 
 2. **Strategy Pattern Implementation**:
@@ -269,7 +269,7 @@ classDiagram
    );
    
    -- Add model_id and charge breakdown to bills
-   ALTER TABLE bills ADD COLUMN model_id VARCHAR(50);
+   ALTER TABLE bills ADD COLUMN model_id VARCHAR(50) NOT NULL DEFAULT 'fast-model';
    ALTER TABLE bills ADD COLUMN prompt_charge DECIMAL(10, 2);
    ALTER TABLE bills ADD COLUMN completion_charge DECIMAL(10, 2);
    
@@ -353,7 +353,7 @@ classDiagram
 1. Responsibility: Add model info and charge breakdown
 2. Location: `domain/Bill.java`
 3. Changes:
-   - Add attribute `modelId`: String - AI model used for this bill
+   - Add attribute `modelId`: String - AI model used for this bill (required, default "fast-model")
    - Add attribute `promptCharge`: BigDecimal - Charge for prompt tokens (Premium only), nullable
    - Add attribute `completionCharge`: BigDecimal - Charge for completion tokens (Premium only), nullable
    - Deprecate static `create()` method - billing logic moves to strategies
@@ -457,10 +457,10 @@ classDiagram
 1. Responsibility: Add model_id and charge breakdown columns
 2. Location: `infrastructure/persistence/entity/BillPO.java`
 3. Changes:
-   - Add `modelId`: String - Maps to `model_id` column (nullable)
+   - Add `modelId`: String - Maps to `model_id` column (NOT NULL, default "fast-model")
    - Add `promptCharge`: BigDecimal - Maps to `prompt_charge` column (nullable)
    - Add `completionCharge`: BigDecimal - Maps to `completion_charge` column (nullable)
-4. Annotations: `@Column` with appropriate naming and precision
+4. Annotations: `@Column(name = "model_id", length = 50, nullable = false)` for modelId; `@Column` with appropriate naming and precision for charge fields
 
 ### Create Mapper - ModelPricingMapper
 
@@ -666,7 +666,7 @@ classDiagram
 4. **Data Integrity Constraints**:
    - model_pricing.plan_id must reference valid pricing_plans.id
    - model_pricing (plan_id, model_id) combination must be unique
-   - bills.model_id is nullable for backward compatibility with existing bills
+   - bills.model_id is NOT NULL with default value 'fast-model' for backward compatibility with existing bills
 
 5. **Strategy Pattern Constraints**:
    - Every PlanType must have exactly one BillingStrategy implementation
