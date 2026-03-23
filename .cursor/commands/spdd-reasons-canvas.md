@@ -458,6 +458,24 @@ A fully-populated, implementation-ready REASONS-Canvas structured prompt saved t
 - Operations section MUST contain specific, executable implementation tasks with detailed method signatures and logic
 - **Conservative Entity Design**: Respect existing implementations, avoid unnecessary refactoring
 
+**No Code Block Rules** (CRITICAL):
+
+The SPDD prompt file is a **specification document**, not source code. It describes WHAT to implement, leaving the HOW to the `/spdd-generate` phase.
+
+- **Do NOT include language-specific code blocks** (e.g., ```java, ```python, ```typescript)
+- **Do NOT include implementation code** - no class definitions, method bodies, SQL queries, or annotations in code form
+- **Use natural language** to describe:
+  - Method signatures: "Method `findById(String id)` returns `Optional<Customer>`"
+  - Query logic: "Query active subscriptions where customerId matches and date falls within effective range, ordered by createdAt DESC"
+  - Interface contracts: "Interface defines methods: `save(Bill)`, `findByCustomerId(String)`"
+- **Allowed diagram blocks**: Mermaid diagrams for entity relationships are permitted (```mermaid)
+- **Describe, don't implement**:
+  - ✅ "Adapter converts between PO and domain entity using `toDomain()` and `fromDomain()` methods"
+  - ❌ ```java @Repository public class JpaCustomerRepositoryAdapter { ... } ```
+- **Specification vs Implementation boundary**:
+  - SPDD prompt = specification (describes contracts, behaviors, constraints)
+  - Generated code = implementation (actual source files created by `/spdd-generate`)
+
 **Context Integrity Guardrails**:
 
 - **MUST read ALL `@` referenced files completely** - do NOT skip or partially read any referenced file
