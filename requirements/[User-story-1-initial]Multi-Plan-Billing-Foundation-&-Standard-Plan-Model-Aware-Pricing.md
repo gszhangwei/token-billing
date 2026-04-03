@@ -27,8 +27,8 @@ As our LLM API platform scales, a single flat-rate pricing model is no longer su
 
 ### Scope Out
 
-- Premium plan billing logic (covered in User-story-4)
-- Enterprise plan and volume-based tiered discounts (covered in User-story-2)
+- Premium plan billing logic
+- Enterprise plan and volume-based tiered discounts
 - Subscription plan CRUD (creating/assigning plans to customers)
 - Invoice generation
 - Model CRUD operations (adding/removing supported models)
