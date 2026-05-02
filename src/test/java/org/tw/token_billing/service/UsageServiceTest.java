@@ -259,11 +259,11 @@ class UsageServiceTest {
         assertEquals(0, new BigDecimal("0.00").compareTo(response.getTotalCharge()));
     }
 
-    // SRS §2.4 worked-example tests. The (12500, 0.0150) case differs from the
-    // SRS table entry: SRS lists 0.18 but the correct BigDecimal HALF_EVEN value
-    // is 0.19 because 0.18750 is closer to 0.19 (distance 0.0025) than to 0.18
-    // (distance 0.0075) — i.e. not a true tie, so HALF_EVEN behaves as HALF_UP.
-    // SRS §2.4 row 5 is a documentation errata to be corrected.
+    // SRS §2.4 worked-example tests, mirroring the canonical table 1:1.
+    // The (12500, 0.0150) case is intentionally absent because SRS §2.4
+    // documents it as an errata: its discarded fraction 0.0075 is not a
+    // halfway tie, so any rounding mode yields 0.19. It was replaced by
+    // (9250, 0.0200) — a true halfway with even preceding digit.
 
     @Test
     void srsWorkedExample_overage12345_at_rate_0_0150_yields_0_19() {
@@ -302,15 +302,32 @@ class UsageServiceTest {
     }
 
     @Test
-    void srsWorkedExample_overage12500_at_rate_0_0150_yields_0_19() {
-        // 12500 / 1000 × 0.0150 = 0.18750 → setScale(2, HALF_EVEN) = 0.19
-        // (SRS §2.4 lists 0.18 — that entry is a documentation errata)
-        var subscription = createSubscription(CUSTOMER_ID, 0, new BigDecimal("0.0150"));
+    void srsWorkedExample_overage9250_at_rate_0_0200_yields_0_18_halfwayEven() {
+        // 9250 / 1000 × 0.0200 = 0.18500000 → discarded fraction = 0.005 (halfway).
+        // Preceding digit "8" is even → HALF_EVEN keeps it → 0.18.
+        // HALF_UP would yield 0.19, so this is the canonical regression fixture
+        // that distinguishes HALF_EVEN from HALF_UP.
+        var subscription = createSubscription(CUSTOMER_ID, 0, new BigDecimal("0.0200"));
         mockUsage(subscription, 0L);
 
-        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 6250, 6250));
+        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 4625, 4625));
 
-        assertEquals(12500, response.getOverageTokens());
-        assertEquals(0, new BigDecimal("0.19").compareTo(response.getTotalCharge()));
+        assertEquals(9250, response.getOverageTokens());
+        assertEquals(0, new BigDecimal("0.18").compareTo(response.getTotalCharge()),
+            "HALF_EVEN must round 0.18500 to 0.18 (preceding digit 8 is even)");
+    }
+
+    @Test
+    void srsWorkedExample_overage9750_at_rate_0_0200_yields_0_20_halfwayOdd() {
+        // 9750 / 1000 × 0.0200 = 0.19500000 → discarded fraction = 0.005 (halfway).
+        // Preceding digit "9" is odd → HALF_EVEN rounds up to even → 0.20.
+        var subscription = createSubscription(CUSTOMER_ID, 0, new BigDecimal("0.0200"));
+        mockUsage(subscription, 0L);
+
+        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 4875, 4875));
+
+        assertEquals(9750, response.getOverageTokens());
+        assertEquals(0, new BigDecimal("0.20").compareTo(response.getTotalCharge()),
+            "HALF_EVEN must round 0.19500 to 0.20 (preceding digit 9 is odd → carries to even 20)");
     }
 }
