@@ -244,4 +244,73 @@ class UsageServiceTest {
         assertNotNull(response.getCurrency());
         assertNotNull(response.getCalculatedAt());
     }
+
+    // -------- Issue #1 acceptance: AC3 / AC4 worked examples --------
+
+    @Test
+    void ac3_priorUsage60kPlus30kSubmit_returnsZeroCharge() {
+        // AC3: CUST-001 STARTER, prior 60,000 + submit 30,000 → totalCharge=0.00
+        mockUsage(createDefaultSubscription(), 60_000L);
+
+        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 15000, 15000));
+
+        assertEquals(30000, response.getTokensFromQuota());
+        assertEquals(0, response.getOverageTokens());
+        assertEquals(0, new BigDecimal("0.00").compareTo(response.getTotalCharge()));
+    }
+
+    // SRS §2.4 worked-example tests. The (12500, 0.0150) case differs from the
+    // SRS table entry: SRS lists 0.18 but the correct BigDecimal HALF_EVEN value
+    // is 0.19 because 0.18750 is closer to 0.19 (distance 0.0025) than to 0.18
+    // (distance 0.0075) — i.e. not a true tie, so HALF_EVEN behaves as HALF_UP.
+    // SRS §2.4 row 5 is a documentation errata to be corrected.
+
+    @Test
+    void srsWorkedExample_overage12345_at_rate_0_0150_yields_0_19() {
+        // 12345 / 1000 × 0.0150 = 0.185175 → setScale(2, HALF_EVEN) = 0.19
+        var subscription = createSubscription(CUSTOMER_ID, 0, new BigDecimal("0.0150"));
+        mockUsage(subscription, 0L);
+
+        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 6172, 6173));
+
+        assertEquals(12345, response.getOverageTokens());
+        assertEquals(0, new BigDecimal("0.19").compareTo(response.getTotalCharge()));
+    }
+
+    @Test
+    void srsWorkedExample_overage999_at_rate_0_0200_yields_0_02() {
+        // 999 / 1000 × 0.0200 = 0.019980 → setScale(2, HALF_EVEN) = 0.02
+        var subscription = createSubscription(CUSTOMER_ID, 0, new BigDecimal("0.0200"));
+        mockUsage(subscription, 0L);
+
+        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 499, 500));
+
+        assertEquals(999, response.getOverageTokens());
+        assertEquals(0, new BigDecimal("0.02").compareTo(response.getTotalCharge()));
+    }
+
+    @Test
+    void srsWorkedExample_overage5_at_rate_0_0150_yields_0_00() {
+        // 5 / 1000 × 0.0150 = 0.000075 → setScale(2, HALF_EVEN) = 0.00
+        var subscription = createSubscription(CUSTOMER_ID, 0, new BigDecimal("0.0150"));
+        mockUsage(subscription, 0L);
+
+        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 2, 3));
+
+        assertEquals(5, response.getOverageTokens());
+        assertEquals(0, new BigDecimal("0.00").compareTo(response.getTotalCharge()));
+    }
+
+    @Test
+    void srsWorkedExample_overage12500_at_rate_0_0150_yields_0_19() {
+        // 12500 / 1000 × 0.0150 = 0.18750 → setScale(2, HALF_EVEN) = 0.19
+        // (SRS §2.4 lists 0.18 — that entry is a documentation errata)
+        var subscription = createSubscription(CUSTOMER_ID, 0, new BigDecimal("0.0150"));
+        mockUsage(subscription, 0L);
+
+        var response = usageService.calculateBill(new UsageRequest(CUSTOMER_ID, 6250, 6250));
+
+        assertEquals(12500, response.getOverageTokens());
+        assertEquals(0, new BigDecimal("0.19").compareTo(response.getTotalCharge()));
+    }
 }
