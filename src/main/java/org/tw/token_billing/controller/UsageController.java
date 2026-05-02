@@ -27,9 +27,15 @@ public class UsageController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @ExceptionHandler(UsageService.CustomerNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleCustomerNotFound(UsageService.CustomerNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(UsageService.NoActiveSubscriptionException.class)
+    public ResponseEntity<ErrorResponse> handleNoActiveSubscription(UsageService.NoActiveSubscriptionException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(UsageService.MultipleSubscriptionsException.class)
+    public ResponseEntity<ErrorResponse> handleMultipleSubscriptions(UsageService.MultipleSubscriptionsException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(new ErrorResponse(ex.getMessage()));
     }
 

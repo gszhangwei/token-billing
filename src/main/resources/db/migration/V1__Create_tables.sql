@@ -52,10 +52,17 @@ INSERT INTO pricing_plans (id, name, monthly_quota, overage_rate_per_1k) VALUES
 INSERT INTO customers (id, name) VALUES
     ('CUST-001', 'Acme Corp'),
     ('CUST-002', 'TechStart Inc'),
-    ('CUST-003', 'Enterprise Solutions Ltd');
+    ('CUST-003', 'Enterprise Solutions Ltd'),
+    ('CUST-004', 'No Active Sub Corp'),
+    ('CUST-005', 'Multi Sub Corp');
 
 -- Seed data: subscriptions
-INSERT INTO customer_subscriptions (id, customer_id, plan_id, effective_from) VALUES
-    ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'CUST-001', 'PLAN-STARTER', '2026-01-01'),
-    ('b2c3d4e5-f6a7-8901-bcde-f12345678901', 'CUST-002', 'PLAN-FREE', '2026-02-01'),
-    ('c3d4e5f6-a7b8-9012-cdef-123456789012', 'CUST-003', 'PLAN-ENTERPRISE', '2026-01-15');
+INSERT INTO customer_subscriptions (id, customer_id, plan_id, effective_from, effective_to) VALUES
+    ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'CUST-001', 'PLAN-STARTER', '2026-01-01', NULL),
+    ('b2c3d4e5-f6a7-8901-bcde-f12345678901', 'CUST-002', 'PLAN-FREE', '2026-02-01', NULL),
+    ('c3d4e5f6-a7b8-9012-cdef-123456789012', 'CUST-003', 'PLAN-ENTERPRISE', '2026-01-15', NULL),
+    -- CUST-004: expired subscription (effective_to = today - 1) -> no active subscription
+    ('d4e5f6a7-a8b9-0123-def0-234567890123', 'CUST-004', 'PLAN-STARTER', '2026-01-01', '2026-05-01'),
+    -- CUST-005: multiple active subscriptions -> data integrity error
+    ('e5f6a7b8-b9c0-1234-ef01-345678901234', 'CUST-005', 'PLAN-STARTER', '2026-01-01', NULL),
+    ('f6a7b8c9-c0d1-2345-f012-456789012345', 'CUST-005', 'PLAN-PRO', '2026-01-01', NULL);

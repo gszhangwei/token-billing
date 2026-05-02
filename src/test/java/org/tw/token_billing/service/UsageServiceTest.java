@@ -16,7 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -63,8 +63,8 @@ class UsageServiceTest {
     }
 
     private void mockUsage(CustomerSubscription subscription, long currentMonthUsage) {
-        when(subscriptionRepository.findActiveSubscription(any(), any()))
-            .thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
+            .thenReturn(List.of(subscription));
         when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any()))
             .thenReturn(currentMonthUsage);
     }
@@ -167,15 +167,31 @@ class UsageServiceTest {
     // -------- Errors --------
 
     @Test
-    void calculateBill_customerNotFound_throwsException() {
-        when(subscriptionRepository.findActiveSubscription(any(), any())).thenReturn(Optional.empty());
+    void calculateBill_noActiveSubscription_throwsException() {
+        when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
+            .thenReturn(List.of());
 
-        var ex = assertThrows(UsageService.CustomerNotFoundException.class,
-            () -> usageService.calculateBill(new UsageRequest("INVALID", 1000, 1000)));
-        assertTrue(ex.getMessage().contains("INVALID"),
+        var ex = assertThrows(UsageService.NoActiveSubscriptionException.class,
+            () -> usageService.calculateBill(new UsageRequest("CUST-004", 1000, 1000)));
+        assertTrue(ex.getMessage().contains("CUST-004"),
             "Exception message should include customerId");
-        assertTrue(ex.getMessage().toLowerCase().contains("subscription"),
-            "Exception message should mention subscription, not just 'customer not found'");
+        assertTrue(ex.getMessage().toLowerCase().contains("no active"),
+            "Exception message should mention no active subscription");
+    }
+
+    @Test
+    void calculateBill_multipleActiveSubscriptions_throwsException() {
+        var sub1 = createSubscription("CUST-005", DEFAULT_QUOTA, DEFAULT_RATE);
+        var sub2 = createSubscription("CUST-005", 500000, new BigDecimal("0.0150"));
+        when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
+            .thenReturn(List.of(sub1, sub2));
+
+        var ex = assertThrows(UsageService.MultipleSubscriptionsException.class,
+            () -> usageService.calculateBill(new UsageRequest("CUST-005", 1000, 1000)));
+        assertTrue(ex.getMessage().contains("CUST-005"),
+            "Exception message should include customerId");
+        assertTrue(ex.getMessage().toLowerCase().contains("multiple"),
+            "Exception message should mention multiple subscriptions");
     }
 
     // -------- Persistence / interaction --------

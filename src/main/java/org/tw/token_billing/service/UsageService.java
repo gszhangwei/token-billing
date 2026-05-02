@@ -1,5 +1,7 @@
 package org.tw.token_billing.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.tw.token_billing.dto.BillResponse;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.Bill;
@@ -17,11 +19,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 public class UsageService {
 
+    private static final Logger log = LoggerFactory.getLogger(UsageService.class);
     private static final MathContext MATH_CONTEXT = new MathContext(10, RoundingMode.HALF_EVEN);
     private static final String CURRENCY_USD = "USD";
 
@@ -37,9 +41,19 @@ public class UsageService {
     public BillResponse calculateBill(UsageRequest request) {
         // Validate customer exists and has active subscription
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        CustomerSubscription subscription = subscriptionRepository
-            .findActiveSubscription(request.getCustomerId(), today)
-            .orElseThrow(() -> new CustomerNotFoundException(request.getCustomerId()));
+        List<CustomerSubscription> subscriptions = subscriptionRepository
+            .findAllActiveSubscriptions(request.getCustomerId(), today);
+
+        if (subscriptions.isEmpty()) {
+            throw new NoActiveSubscriptionException(request.getCustomerId());
+        }
+
+        if (subscriptions.size() > 1) {
+            log.error("Multiple active subscriptions for customerId={}", request.getCustomerId());
+            throw new MultipleSubscriptionsException(request.getCustomerId());
+        }
+
+        CustomerSubscription subscription = subscriptions.get(0);
 
         Customer customer = subscription.getCustomer();
         int quota = subscription.getPricingPlan().getMonthlyQuota();
@@ -96,9 +110,15 @@ public class UsageService {
         );
     }
 
-    public static class CustomerNotFoundException extends RuntimeException {
-        public CustomerNotFoundException(String customerId) {
-            super("Active subscription not found for customer: " + customerId);
+    public static class NoActiveSubscriptionException extends RuntimeException {
+        public NoActiveSubscriptionException(String customerId) {
+            super("No active subscription found for customer: " + customerId);
+        }
+    }
+
+    public static class MultipleSubscriptionsException extends RuntimeException {
+        public MultipleSubscriptionsException(String customerId) {
+            super("Multiple active subscriptions found for customer: " + customerId);
         }
     }
 }
