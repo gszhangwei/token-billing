@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -35,13 +37,14 @@ class UsageControllerTest {
     @Test
     void submitUsage_validRequest_returns201WithBillResponse() throws Exception {
         UUID billId = UUID.randomUUID();
-        Instant now = Instant.now();
+        // Fixed UTC instant with non-zero millis to verify ISO-8601 Z formatting
+        Instant calculatedAt = Instant.parse("2026-05-02T13:30:45.123Z");
         BillResponse response = new BillResponse(
-            billId, "CUST-001", 1000, 1000, 2000, 2000, 0,
-            new BigDecimal("0.00"), "USD", now);
+            billId, "CUST-001", 25000, 25000, 50000, 20000, 30000,
+            new BigDecimal("0.60"), "USD", calculatedAt);
         when(usageService.calculateBill(any(UsageRequest.class))).thenReturn(response);
 
-        UsageRequest request = new UsageRequest("CUST-001", 1000, 1000);
+        UsageRequest request = new UsageRequest("CUST-001", 25000, 25000);
 
         mockMvc.perform(post("/api/usage")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -50,10 +53,17 @@ class UsageControllerTest {
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
             .andExpect(jsonPath("$.billId").value(billId.toString()))
             .andExpect(jsonPath("$.customerId").value("CUST-001"))
-            .andExpect(jsonPath("$.totalTokens").value(2000))
-            .andExpect(jsonPath("$.tokensFromQuota").value(2000))
-            .andExpect(jsonPath("$.overageTokens").value(0))
-            .andExpect(jsonPath("$.currency").value("USD"));
+            .andExpect(jsonPath("$.promptTokens").value(25000))
+            .andExpect(jsonPath("$.completionTokens").value(25000))
+            .andExpect(jsonPath("$.totalTokens").value(50000))
+            .andExpect(jsonPath("$.tokensFromQuota").value(20000))
+            .andExpect(jsonPath("$.overageTokens").value(30000))
+            .andExpect(jsonPath("$.totalCharge").isNumber())
+            .andExpect(jsonPath("$.currency").value("USD"))
+            // AC7: calculatedAt is ISO-8601 UTC with Z suffix
+            .andExpect(jsonPath("$.calculatedAt").value(endsWith("Z")))
+            // AC7: totalCharge serialized as a number with 2dp (BigDecimal scale preserved)
+            .andExpect(content().string(containsString("\"totalCharge\":0.60")));
     }
 
     @Test
