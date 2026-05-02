@@ -15,7 +15,6 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.UUID;
@@ -63,7 +62,7 @@ public class UsageService {
 
         // Calculate charge: (overageTokens / 1000) × overageRatePer1k
         BigDecimal charge = BigDecimal.valueOf(overageTokens)
-            .divide(new BigDecimal(1000), MATH_CONTEXT)
+            .divide(BigDecimal.valueOf(1000), MATH_CONTEXT)
             .multiply(overageRatePer1k)
             .setScale(2, RoundingMode.HALF_EVEN);
 
