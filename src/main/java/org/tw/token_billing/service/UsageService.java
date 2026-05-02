@@ -50,25 +50,21 @@ public class UsageService {
         int totalTokens = request.getPromptTokens() + request.getCompletionTokens();
 
         // Get current month usage
-        LocalDateTime monthStart = today.with(TemporalAdjusters.firstDayOfMonth())
-            .atStartOfDay();
-        Integer currentMonthUsage = billRepository.sumTotalTokensByCustomerIdAndMonthStart(
+        Instant monthStart = today.with(TemporalAdjusters.firstDayOfMonth())
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant();
+        long currentMonthUsage = billRepository.sumTotalTokensByCustomerIdAndMonthStart(
             request.getCustomerId(), monthStart);
 
         // Calculate tokens from quota and overage
-        int availableQuota = Math.max(0, quota - currentMonthUsage);
-        int tokensFromQuota = Math.min(totalTokens, availableQuota);
+        long availableQuota = Math.max(0L, (long) quota - currentMonthUsage);
+        int tokensFromQuota = (int) Math.min((long) totalTokens, availableQuota);
         int overageTokens = totalTokens - tokensFromQuota;
 
-        // Calculate charge using BigDecimal with MathContext(10) HALF_EVEN
-        BigDecimal totalTokensBD = new BigDecimal(totalTokens);
-        BigDecimal overageTokensBD = new BigDecimal(overageTokens);
-        BigDecimal overageRateBD = overageRatePer1k;
-
-        // (overageTokens / 1000) × overageRatePer1k
-        BigDecimal charge = overageTokensBD
+        // Calculate charge: (overageTokens / 1000) × overageRatePer1k
+        BigDecimal charge = BigDecimal.valueOf(overageTokens)
             .divide(new BigDecimal(1000), MATH_CONTEXT)
-            .multiply(overageRateBD)
+            .multiply(overageRatePer1k)
             .setScale(2, RoundingMode.HALF_EVEN);
 
         // Create and save the bill
@@ -103,7 +99,7 @@ public class UsageService {
 
     public static class CustomerNotFoundException extends RuntimeException {
         public CustomerNotFoundException(String customerId) {
-            super("Customer not found: " + customerId);
+            super("Active subscription not found for customer: " + customerId);
         }
     }
 }

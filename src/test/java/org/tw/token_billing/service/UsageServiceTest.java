@@ -63,7 +63,7 @@ class UsageServiceTest {
         CustomerSubscription subscription = createFullSubscription("CUST-001");
         
         when(subscriptionRepository.findActiveSubscription(any(), any())).thenReturn(Optional.of(subscription));
-        when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any())).thenReturn(0);
+        when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any())).thenReturn(0L);
 
         // When: Submitting 30,000 tokens (within 100,000 quota)
         UsageRequest request = new UsageRequest("CUST-001", 15000, 15000);
@@ -85,7 +85,7 @@ class UsageServiceTest {
         
         when(subscriptionRepository.findActiveSubscription(any(), any())).thenReturn(Optional.of(subscription));
         // Simulate 80,000 already used - leaves 20,000 quota available
-        when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any())).thenReturn(80000);
+        when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any())).thenReturn(80000L);
 
         // When: Submitting 50,000 tokens
         UsageRequest request = new UsageRequest("CUST-001", 25000, 25000);
@@ -111,7 +111,7 @@ class UsageServiceTest {
         CustomerSubscription subscription = createFullSubscription("CUST-001");
         
         when(subscriptionRepository.findActiveSubscription(any(), any())).thenReturn(Optional.of(subscription));
-        when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any())).thenReturn(0);
+        when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any())).thenReturn(0L);
 
         UsageRequest request = new UsageRequest("CUST-001", 5000, 5000);
         var response = usageService.calculateBill(request);

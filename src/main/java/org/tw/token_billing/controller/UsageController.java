@@ -33,8 +33,9 @@ public class UsageController {
             .body(new ErrorResponse(ex.getMessage()));
     }
 
-    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> handleValidationException(jakarta.validation.ConstraintViolationException ex) {
+    @ExceptionHandler({jakarta.validation.ConstraintViolationException.class, 
+                      org.springframework.web.bind.MethodArgumentNotValidException.class})
+    public ResponseEntity<ErrorResponse> handleValidationException(Exception ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(new ErrorResponse(ex.getMessage()));
     }
