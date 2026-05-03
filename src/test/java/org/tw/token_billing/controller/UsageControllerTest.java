@@ -100,17 +100,32 @@ class UsageControllerTest {
     }
 
     @Test
-    void submitUsage_customerNotFound_returns404() throws Exception {
+    void submitUsage_noActiveSubscription_returns409() throws Exception {
         when(usageService.calculateBill(any(UsageRequest.class)))
-            .thenThrow(new UsageService.CustomerNotFoundException("CUST-MISSING"));
+            .thenThrow(new UsageService.NoActiveSubscriptionException("CUST-MISSING"));
 
         UsageRequest request = new UsageRequest("CUST-MISSING", 100, 100);
 
         mockMvc.perform(post("/api/usage")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isNotFound())
+            .andExpect(status().isConflict())
             .andExpect(jsonPath("$.message").value(
                 org.hamcrest.Matchers.containsString("CUST-MISSING")));
+    }
+
+    @Test
+    void submitUsage_multipleSubscriptions_returns500() throws Exception {
+        when(usageService.calculateBill(any(UsageRequest.class)))
+            .thenThrow(new UsageService.MultipleSubscriptionsException("CUST-DUP"));
+
+        UsageRequest request = new UsageRequest("CUST-DUP", 100, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.message").value(
+                org.hamcrest.Matchers.containsString("CUST-DUP")));
     }
 }
