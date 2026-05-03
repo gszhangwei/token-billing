@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.tw.token_billing.dto.BillResponse;
 import org.tw.token_billing.dto.UsageRequest;
+import org.tw.token_billing.exception.CustomerNotFoundException;
 import org.tw.token_billing.service.UsageService;
 
 import java.math.BigDecimal;
@@ -66,43 +67,11 @@ class UsageControllerTest {
             .andExpect(content().string(containsString("\"totalCharge\":0.60")));
     }
 
+    // AC1: 404 - Customer not found
     @Test
-    void submitUsage_negativePromptTokens_returns400() throws Exception {
-        UsageRequest request = new UsageRequest("CUST-001", -1, 1000);
-
-        mockMvc.perform(post("/api/usage")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").exists());
-    }
-
-    @Test
-    void submitUsage_blankCustomerId_returns400() throws Exception {
-        UsageRequest request = new UsageRequest("", 100, 100);
-
-        mockMvc.perform(post("/api/usage")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").exists());
-    }
-
-    @Test
-    void submitUsage_missingPromptTokens_returns400() throws Exception {
-        String body = "{\"customerId\":\"CUST-001\",\"completionTokens\":100}";
-
-        mockMvc.perform(post("/api/usage")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").exists());
-    }
-
-    @Test
-    void submitUsage_customerNotFound_returns404() throws Exception {
+    void submitUsage_customerNotFound_returns404WithRfc7807() throws Exception {
         when(usageService.calculateBill(any(UsageRequest.class)))
-            .thenThrow(new UsageService.CustomerNotFoundException("CUST-MISSING"));
+            .thenThrow(new CustomerNotFoundException("CUST-MISSING"));
 
         UsageRequest request = new UsageRequest("CUST-MISSING", 100, 100);
 
@@ -110,7 +79,118 @@ class UsageControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.message").value(
-                org.hamcrest.Matchers.containsString("CUST-MISSING")));
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Customer not found"))
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.detail").value(containsString("CUST-MISSING")))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
+    }
+
+    // AC2: 400 - Invalid customer ID format
+    @Test
+    void submitUsage_invalidCustomerIdFormat_returns400WithRfc7807() throws Exception {
+        // Invalid characters (special chars not allowed)
+        UsageRequest request = new UsageRequest("CUST@INVALID!", 100, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Invalid customer ID format"))
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.detail").value("Invalid customer ID format"))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
+    }
+
+    // AC2: 400 - Customer ID too long
+    @Test
+    void submitUsage_customerIdTooLong_returns400WithRfc7807() throws Exception {
+        // Customer ID exceeds 50 characters
+        String longCustomerId = "CUST-" + "A".repeat(50);
+        UsageRequest request = new UsageRequest(longCustomerId, 100, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.title").value("Invalid customer ID format"));
+    }
+
+    // AC2: 400 - Negative token count
+    @Test
+    void submitUsage_negativePromptTokens_returns400WithRfc7807() throws Exception {
+        UsageRequest request = new UsageRequest("CUST-001", -1, 1000);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Token count cannot be negative"))
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.detail").value("Token count cannot be negative"))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
+    }
+
+    // AC2: 400 - Token count overflow guard (exceeds max)
+    @Test
+    void submitUsage_tokenCountExceedsMax_returns400WithRfc7807() throws Exception {
+        // Exceeds 2_000_000_000
+        UsageRequest request = new UsageRequest("CUST-001", 2000000001, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.status").value(400));
+    }
+
+    // AC2: 400 - Missing required field
+    @Test
+    void submitUsage_missingPromptTokens_returns400WithRfc7807() throws Exception {
+        String body = "{\"customerId\":\"CUST-001\",\"completionTokens\":100}";
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Invalid request body"))
+            .andExpect(jsonPath("$.status").value(400));
+    }
+
+    // AC2: 400 - Unknown extra field
+    @Test
+    void submitUsage_unknownExtraField_returns400WithRfc7807() throws Exception {
+        String body = "{\"customerId\":\"CUST-001\",\"promptTokens\":100,\"completionTokens\":100,\"unknownField\":\"value\"}";
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Invalid request body"))
+            .andExpect(jsonPath("$.status").value(400));
+    }
+
+    // Validation order test: body parsing before field validation
+    @Test
+    void submitUsage_emptyRequestBody_returns400WithRfc7807() throws Exception {
+        String body = "{}";
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.status").value(400));
     }
 }
