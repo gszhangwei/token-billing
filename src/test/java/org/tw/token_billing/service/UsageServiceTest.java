@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.*;
+import org.tw.token_billing.exception.CustomerNotFoundException;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
 
@@ -170,12 +171,12 @@ class UsageServiceTest {
     void calculateBill_customerNotFound_throwsException() {
         when(subscriptionRepository.findActiveSubscription(any(), any())).thenReturn(Optional.empty());
 
-        var ex = assertThrows(UsageService.CustomerNotFoundException.class,
+        var ex = assertThrows(CustomerNotFoundException.class,
             () -> usageService.calculateBill(new UsageRequest("INVALID", 1000, 1000)));
         assertTrue(ex.getMessage().contains("INVALID"),
             "Exception message should include customerId");
-        assertTrue(ex.getMessage().toLowerCase().contains("subscription"),
-            "Exception message should mention subscription, not just 'customer not found'");
+        assertTrue(ex.getMessage().toLowerCase().contains("does not exist"),
+            "Exception message should say 'does not exist'");
     }
 
     // -------- Persistence / interaction --------
