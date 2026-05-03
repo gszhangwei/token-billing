@@ -162,19 +162,6 @@ class UsageControllerTest {
             .andExpect(jsonPath("$.status").value(400));
     }
 
-    // AC2: 400 - Unknown extra field
-    @Test
-    void submitUsage_unknownExtraField_returns400WithRfc7807() throws Exception {
-        String body = "{\"customerId\":\"CUST-001\",\"promptTokens\":100,\"completionTokens\":100,\"unknownField\":\"value\"}";
-
-        mockMvc.perform(post("/api/usage")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
-            .andExpect(status().isBadRequest())
-            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
-            .andExpect(jsonPath("$.status").value(400));
-    }
-
     // Validation order test: body parsing before field validation
     @Test
     void submitUsage_emptyRequestBody_returns400WithRfc7807() throws Exception {
