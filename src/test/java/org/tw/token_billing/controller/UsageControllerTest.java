@@ -19,6 +19,8 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -173,5 +175,47 @@ class UsageControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
             .andExpect(jsonPath("$.status").value(400));
+    }
+
+    // AC4: 400 - Unknown extra field rejected via fail-on-unknown-properties
+    @Test
+    void submitUsage_unknownExtraField_returns400WithRfc7807() throws Exception {
+        String body = "{\"customerId\":\"CUST-001\",\"promptTokens\":100,"
+                + "\"completionTokens\":100,\"unknownField\":\"value\"}";
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Invalid request body"))
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
+
+        verify(usageService, never()).calculateBill(any(UsageRequest.class));
+    }
+
+    // AC9: SRS-F-6 sequence — body/field validation MUST short-circuit before
+    // customer lookup. If the body fails validation, the service must not be called
+    // even when the customerId would otherwise resolve to a 404.
+    @Test
+    void submitUsage_invalidBody_shortCircuitsBeforeCustomerLookup() throws Exception {
+        // Stub: if the service were ever called, it would return 404. We must see 400 instead.
+        when(usageService.calculateBill(any(UsageRequest.class)))
+            .thenThrow(new CustomerNotFoundException("CUST-MISSING"));
+
+        // customerId fails the regex AND would map to a non-existent customer
+        UsageRequest request = new UsageRequest("BAD@ID!", 100, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.title").value("Invalid customer ID format"))
+            .andExpect(jsonPath("$.status").value(400));
+
+        verify(usageService, never()).calculateBill(any(UsageRequest.class));
     }
 }
