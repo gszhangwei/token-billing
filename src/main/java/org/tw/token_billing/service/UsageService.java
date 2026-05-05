@@ -5,6 +5,7 @@ import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.Bill;
 import org.tw.token_billing.entity.Customer;
 import org.tw.token_billing.entity.CustomerSubscription;
+import org.tw.token_billing.exception.CustomerNotFoundException;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
 import org.springframework.stereotype.Service;
@@ -94,11 +95,5 @@ public class UsageService {
             CURRENCY_USD,
             bill.getCalculatedAt()
         );
-    }
-
-    public static class CustomerNotFoundException extends RuntimeException {
-        public CustomerNotFoundException(String customerId) {
-            super("Active subscription not found for customer: " + customerId);
-        }
     }
 }

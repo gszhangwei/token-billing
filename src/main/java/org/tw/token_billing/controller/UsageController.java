@@ -26,28 +26,4 @@ public class UsageController {
         BillResponse response = usageService.calculateBill(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-
-    @ExceptionHandler(UsageService.CustomerNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleCustomerNotFound(UsageService.CustomerNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body(new ErrorResponse(ex.getMessage()));
-    }
-
-    @ExceptionHandler({jakarta.validation.ConstraintViolationException.class, 
-                      org.springframework.web.bind.MethodArgumentNotValidException.class})
-    public ResponseEntity<ErrorResponse> handleValidationException(Exception ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body(new ErrorResponse(ex.getMessage()));
-    }
-
-    public static class ErrorResponse {
-        private String message;
-
-        public ErrorResponse(String message) {
-            this.message = message;
-        }
-
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-    }
 }
