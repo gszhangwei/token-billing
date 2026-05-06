@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.tw.token_billing.entity.CustomerSubscription;
 import java.time.LocalDate;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface CustomerSubscriptionRepository extends JpaRepository<CustomerSubscription, UUID> {
@@ -16,7 +16,7 @@ public interface CustomerSubscriptionRepository extends JpaRepository<CustomerSu
            "WHERE s.customer.id = :customerId " +
            "AND s.effectiveFrom <= :effectiveDate " +
            "AND (s.effectiveTo IS NULL OR s.effectiveTo >= :effectiveDate)")
-    Optional<CustomerSubscription> findActiveSubscription(
+    List<CustomerSubscription> findAllActiveSubscriptions(
         @Param("customerId") String customerId,
         @Param("effectiveDate") LocalDate effectiveDate
     );

@@ -10,6 +10,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.tw.token_billing.dto.BillResponse;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
+import org.tw.token_billing.exception.NoActiveSubscriptionException;
 import org.tw.token_billing.service.UsageService;
 
 import java.math.BigDecimal;
@@ -217,5 +219,45 @@ class UsageControllerTest {
             .andExpect(jsonPath("$.status").value(400));
 
         verify(usageService, never()).calculateBill(any(UsageRequest.class));
+    }
+
+    // AC6: 409 - Customer exists but has no active subscription (RFC 7807)
+    @Test
+    void submitUsage_noActiveSubscription_returns409WithRfc7807() throws Exception {
+        when(usageService.calculateBill(any(UsageRequest.class)))
+            .thenThrow(new NoActiveSubscriptionException("CUST-NOSUB"));
+
+        UsageRequest request = new UsageRequest("CUST-NOSUB", 100, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("No active subscription"))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.detail").value(containsString("CUST-NOSUB")))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
+    }
+
+    // SRS-F-7: 500 - Multiple active subscriptions (data integrity error, RFC 7807)
+    @Test
+    void submitUsage_multipleActiveSubscriptions_returns500WithRfc7807() throws Exception {
+        when(usageService.calculateBill(any(UsageRequest.class)))
+            .thenThrow(new MultipleActiveSubscriptionsException("CUST-MULTI"));
+
+        UsageRequest request = new UsageRequest("CUST-MULTI", 100, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isInternalServerError())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Data integrity error"))
+            .andExpect(jsonPath("$.status").value(500))
+            .andExpect(jsonPath("$.detail").value(containsString("CUST-MULTI")))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
     }
 }

@@ -9,7 +9,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.*;
 import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
+import org.tw.token_billing.exception.NoActiveSubscriptionException;
 import org.tw.token_billing.repository.BillRepository;
+import org.tw.token_billing.repository.CustomerRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
 
 import java.math.BigDecimal;
@@ -17,7 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -33,6 +36,9 @@ class UsageServiceTest {
     private static final BigDecimal DEFAULT_RATE = new BigDecimal("0.0200");
 
     @Mock
+    private CustomerRepository customerRepository;
+
+    @Mock
     private CustomerSubscriptionRepository subscriptionRepository;
 
     @Mock
@@ -42,7 +48,7 @@ class UsageServiceTest {
 
     @BeforeEach
     void setUp() {
-        usageService = new UsageService(subscriptionRepository, billRepository);
+        usageService = new UsageService(customerRepository, subscriptionRepository, billRepository);
     }
 
     private CustomerSubscription createSubscription(String customerId, int quota, BigDecimal ratePer1k) {
@@ -64,8 +70,10 @@ class UsageServiceTest {
     }
 
     private void mockUsage(CustomerSubscription subscription, long currentMonthUsage) {
-        when(subscriptionRepository.findActiveSubscription(any(), any()))
-            .thenReturn(Optional.of(subscription));
+        when(customerRepository.existsById(any()))
+            .thenReturn(true);
+        when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
+            .thenReturn(List.of(subscription));
         when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any()))
             .thenReturn(currentMonthUsage);
     }
@@ -168,15 +176,45 @@ class UsageServiceTest {
     // -------- Errors --------
 
     @Test
-    void calculateBill_customerNotFound_throwsException() {
-        when(subscriptionRepository.findActiveSubscription(any(), any())).thenReturn(Optional.empty());
+    void calculateBill_customerDoesNotExist_throwsCustomerNotFound() {
+        when(customerRepository.existsById("INVALID")).thenReturn(false);
 
         var ex = assertThrows(CustomerNotFoundException.class,
             () -> usageService.calculateBill(new UsageRequest("INVALID", 1000, 1000)));
         assertTrue(ex.getMessage().contains("INVALID"),
             "Exception message should include customerId");
-        assertTrue(ex.getMessage().toLowerCase().contains("does not exist"),
-            "Exception message should say 'does not exist'");
+        // SRS-F-6 step 4 short-circuits before subscription lookup
+        verify(subscriptionRepository, never()).findAllActiveSubscriptions(any(), any());
+    }
+
+    @Test
+    void calculateBill_noActiveSubscription_throwsException() {
+        when(customerRepository.existsById("CUST-004")).thenReturn(true);
+        when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
+            .thenReturn(List.of());
+
+        var ex = assertThrows(NoActiveSubscriptionException.class,
+            () -> usageService.calculateBill(new UsageRequest("CUST-004", 1000, 1000)));
+        assertTrue(ex.getMessage().contains("CUST-004"),
+            "Exception message should include customerId");
+        assertTrue(ex.getMessage().toLowerCase().contains("no active"),
+            "Exception message should mention no active subscription");
+    }
+
+    @Test
+    void calculateBill_multipleActiveSubscriptions_throwsException() {
+        when(customerRepository.existsById("CUST-005")).thenReturn(true);
+        var sub1 = createSubscription("CUST-005", DEFAULT_QUOTA, DEFAULT_RATE);
+        var sub2 = createSubscription("CUST-005", 500000, new BigDecimal("0.0150"));
+        when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
+            .thenReturn(List.of(sub1, sub2));
+
+        var ex = assertThrows(MultipleActiveSubscriptionsException.class,
+            () -> usageService.calculateBill(new UsageRequest("CUST-005", 1000, 1000)));
+        assertTrue(ex.getMessage().contains("CUST-005"),
+            "Exception message should include customerId");
+        assertTrue(ex.getMessage().toLowerCase().contains("multiple"),
+            "Exception message should mention multiple subscriptions");
     }
 
     // -------- Persistence / interaction --------
