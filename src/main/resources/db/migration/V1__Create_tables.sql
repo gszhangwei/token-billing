@@ -54,7 +54,9 @@ INSERT INTO customers (id, name) VALUES
     ('CUST-002', 'TechStart Inc'),
     ('CUST-003', 'Enterprise Solutions Ltd'),
     ('CUST-004', 'No Active Sub Corp'),
-    ('CUST-005', 'Multi Sub Corp');
+    ('CUST-005', 'Multi Sub Corp'),
+    -- CUST-006: customer exists but has zero rows in customer_subscriptions
+    ('CUST-006', 'Never Subscribed Corp');
 
 -- Seed data: subscriptions. effective_from uses a far-past date so rows stay
 -- active regardless of system clock. CUST-004's effective_to is fixed in the

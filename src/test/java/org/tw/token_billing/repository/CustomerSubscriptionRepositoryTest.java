@@ -162,6 +162,17 @@ class CustomerSubscriptionRepositoryTest {
             "CUST-004 should have zero active subscriptions per seed fixture");
     }
 
+    @Test
+    void findAll_seededCustomerWithNoSubscriptionRows_returnsEmpty() {
+        // CUST-006 exists in customers but has zero rows in customer_subscriptions.
+        // Distinguishes "never subscribed" from "subscribed-then-expired" (CUST-004).
+        List<CustomerSubscription> result = subscriptionRepository
+            .findAllActiveSubscriptions("CUST-006", LocalDate.of(2026, 6, 15));
+
+        assertTrue(result.isEmpty(),
+            "CUST-006 should have zero subscription rows per seed fixture");
+    }
+
     // -------- Multiple active subscriptions on seeded fixture --------
 
     @Test
