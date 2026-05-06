@@ -191,6 +191,36 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    /**
+     * SRS-F-7 / AC6: customer exists but has zero active subscriptions.
+     */
+    @ExceptionHandler(NoActiveSubscriptionException.class)
+    public ProblemDetail handleNoActiveSubscription(NoActiveSubscriptionException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            "Customer '" + ex.getCustomerId() + "' has no active subscription"
+        );
+        problemDetail.setType(DEFAULT_TYPE);
+        problemDetail.setTitle("No active subscription");
+        problemDetail.setInstance(URI.create("/api/usage"));
+        return problemDetail;
+    }
+
+    /**
+     * SRS-F-7: customer has 2+ active subscriptions; treated as data integrity error.
+     */
+    @ExceptionHandler(MultipleActiveSubscriptionsException.class)
+    public ProblemDetail handleMultipleActiveSubscriptions(MultipleActiveSubscriptionsException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "Multiple active subscriptions found for customer '" + ex.getCustomerId() + "'"
+        );
+        problemDetail.setType(DEFAULT_TYPE);
+        problemDetail.setTitle("Data integrity error");
+        problemDetail.setInstance(URI.create("/api/usage"));
+        return problemDetail;
+    }
+
     private ProblemDetail createProblemDetail(HttpStatus status, String title, String detail) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
             HttpStatusCode.valueOf(status.value()),
