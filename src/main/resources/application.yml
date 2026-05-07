@@ -15,7 +15,7 @@ spring:
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration/common,classpath:db/migration/${spring.flyway.vendor:postgresql}
 
   jackson:
     deserialization:

@@ -38,6 +38,12 @@ public class Bill {
     @Column(name = "calculated_at", nullable = false)
     private Instant calculatedAt;
 
+    @Column(name = "idempotency_key", length = 255)
+    private String idempotencyKey;
+
+    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
+    private Instant createdAt;
+
     public Bill() {}
 
     public Bill(UUID id, Customer customer, Integer promptTokens, Integer completionTokens,
@@ -52,6 +58,21 @@ public class Bill {
         this.overageTokens = overageTokens;
         this.totalCharge = totalCharge;
         this.calculatedAt = calculatedAt;
+    }
+
+    public Bill(UUID id, Customer customer, Integer promptTokens, Integer completionTokens,
+              Integer totalTokens, Integer includedTokensUsed, Integer overageTokens,
+              BigDecimal totalCharge, Instant calculatedAt, String idempotencyKey) {
+        this.id = id;
+        this.customer = customer;
+        this.promptTokens = promptTokens;
+        this.completionTokens = completionTokens;
+        this.totalTokens = totalTokens;
+        this.includedTokensUsed = includedTokensUsed;
+        this.overageTokens = overageTokens;
+        this.totalCharge = totalCharge;
+        this.calculatedAt = calculatedAt;
+        this.idempotencyKey = idempotencyKey;
     }
 
     public UUID getId() { return id; }
@@ -80,4 +101,9 @@ public class Bill {
 
     public Instant getCalculatedAt() { return calculatedAt; }
     public void setCalculatedAt(Instant calculatedAt) { this.calculatedAt = calculatedAt; }
+
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+
+    public Instant getCreatedAt() { return createdAt; }
 }

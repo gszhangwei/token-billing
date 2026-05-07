@@ -3,11 +3,13 @@ package org.tw.token_billing.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tw.token_billing.dto.BillResponse;
+import org.tw.token_billing.dto.BillResult;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.Bill;
 import org.tw.token_billing.entity.Customer;
 import org.tw.token_billing.entity.CustomerSubscription;
 import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.IdempotencyKeyMismatchException;
 import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
 import org.tw.token_billing.exception.NoActiveSubscriptionException;
 import org.tw.token_billing.repository.BillRepository;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -47,6 +50,12 @@ public class UsageService {
 
     @Transactional
     public BillResponse calculateBill(UsageRequest request) {
+        BillResult result = calculateBill(request, null);
+        return result.body();
+    }
+
+    @Transactional
+    public BillResult calculateBill(UsageRequest request, String idempotencyKey) {
         // SRS-F-6 step 4: customer existence (404 before subscription lookup)
         if (!customerRepository.existsById(request.getCustomerId())) {
             throw new CustomerNotFoundException(request.getCustomerId());
@@ -67,6 +76,24 @@ public class UsageService {
 
         CustomerSubscription subscription = subscriptions.get(0);
         Customer customer = subscription.getCustomer();
+
+        // SRS-F-6 step 6 — idempotency lookup
+        if (idempotencyKey != null) {
+            Instant cutoff = Instant.now().minus(Duration.ofHours(24));
+            List<Bill> hits = billRepository.findActiveIdempotentBills(
+                request.getCustomerId(), idempotencyKey, cutoff);
+            if (!hits.isEmpty()) {
+                Bill existing = hits.get(0);
+                if (payloadMatches(existing, request)) {
+                    log.info("Idempotency replay hit customerId={} keyPrefix={}",
+                        request.getCustomerId(), prefix8(idempotencyKey));
+                    return new BillResult(toResponse(existing), true);
+                } else {
+                    throw new IdempotencyKeyMismatchException(request.getCustomerId(), idempotencyKey);
+                }
+            }
+        }
+
         int quota = subscription.getPricingPlan().getMonthlyQuota();
         BigDecimal overageRatePer1k = subscription.getPricingPlan().getOverageRatePer1k();
 
@@ -97,13 +124,27 @@ public class UsageService {
             tokensFromQuota,
             overageTokens,
             charge,
-            calculatedAt
+            calculatedAt,
+            idempotencyKey
         );
         billRepository.save(bill);
 
+        return new BillResult(toResponse(bill), false);
+    }
+
+    private boolean payloadMatches(Bill existing, UsageRequest request) {
+        return existing.getPromptTokens().equals(request.getPromptTokens())
+            && existing.getCompletionTokens().equals(request.getCompletionTokens());
+    }
+
+    private String prefix8(String key) {
+        return key.length() > 8 ? key.substring(0, 8) : key;
+    }
+
+    private BillResponse toResponse(Bill bill) {
         return new BillResponse(
             bill.getId(),
-            customer.getId(),
+            bill.getCustomer().getId(),
             bill.getPromptTokens(),
             bill.getCompletionTokens(),
             bill.getTotalTokens(),

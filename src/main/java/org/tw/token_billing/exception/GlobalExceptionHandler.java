@@ -10,6 +10,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.tw.token_billing.exception.CustomerNotFoundException;
+import org.tw.token_billing.exception.IdempotencyKeyMismatchException;
+import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
+import org.tw.token_billing.exception.NoActiveSubscriptionException;
 
 import java.net.URI;
 import java.util.List;
@@ -29,6 +33,7 @@ public class GlobalExceptionHandler {
     private static final Set<String> TOKEN_FIELDS = Set.of("promptTokens", "completionTokens");
     private static final Set<String> CUSTOMER_ID_FORMAT_CODES = Set.of("Pattern", "Size");
     private static final String NEGATIVE_TOKEN_CODE = "Min";
+    private static final String IDEMPOTENCY_KEY_FIELD = "idempotencyKey";
 
     /**
      * Handle constraint violations (from @Validated on method parameters)
@@ -53,6 +58,12 @@ public class GlobalExceptionHandler {
                     "Token count cannot be negative",
                     "Token count cannot be negative"
                 );
+            }
+            if (IDEMPOTENCY_KEY_FIELD.equals(field) && "Pattern".equals(annotation)) {
+                return createProblemDetail(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid Idempotency-Key format",
+                    "Invalid Idempotency-Key format");
             }
         }
 
@@ -217,6 +228,19 @@ public class GlobalExceptionHandler {
         );
         problemDetail.setType(DEFAULT_TYPE);
         problemDetail.setTitle("Data integrity error");
+        problemDetail.setInstance(URI.create("/api/usage"));
+        return problemDetail;
+    }
+
+    @ExceptionHandler(IdempotencyKeyMismatchException.class)
+    public ProblemDetail handleIdempotencyMismatch(IdempotencyKeyMismatchException ex) {
+        String prefix = ex.getIdempotencyKey()
+            .substring(0, Math.min(8, ex.getIdempotencyKey().length()));
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Idempotency-Key '" + prefix + "...' was reused with a different payload");
+        problemDetail.setType(DEFAULT_TYPE);
+        problemDetail.setTitle("Idempotency-Key reused with different payload");
         problemDetail.setInstance(URI.create("/api/usage"));
         return problemDetail;
     }
