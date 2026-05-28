@@ -1,0 +1,40 @@
+---
+description: Sync code changes back to SPDD prompts (/spdd-sync)
+alwaysApply: false
+---
+
+# SPDD Sync Phase (Code -> Prompt)
+
+Update `spdd/prompt/*.md` to match refactored or corrected implementation.
+
+## Steps
+
+1. **Validate input** — prompt file path required.
+
+2. **Read prompt** — note REASONS sections; sync priority in `reasons-framework.mdc`.
+
+3. **Identify changes** — ask user or inspect git/diff for affected files and change type (rename, logic, new component, removal).
+
+4. **Compare code vs prompt** — for each affected component: classes, methods, annotations, validation, error messages, dependencies.
+
+5. **Draft sync plan** — list Entities/Structure/Operations/Norms/Safeguards updates. **Get user approval** before deletions.
+
+6. **Apply updates** — preserve section style and detail level; update Operations first when logic changed.
+
+7. **Validate consistency** — Entities match Structure; Operations reference correct names; Safeguards match implementation.
+
+8. **Report** — sections changed, manual review notes.
+
+## Sync patterns
+
+- **Rename**: update all sections referencing old names.
+- **New component**: add to Entities, Structure, and Operations.
+- **Remove component**: remove from all sections (with approval).
+- **Logic change**: update Operations logic steps; verify Safeguards.
+
+## Guardrails
+
+- Do not change Requirements unless user requests.
+- Do not remove prompt content without approval.
+- Do not simplify existing detailed specs.
+- Prompt filename and metadata stay unchanged.

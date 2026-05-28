@@ -1,0 +1,83 @@
+---
+description: SPDD workflow conventions shared by all /spdd-* commands
+alwaysApply: false
+---
+
+# SPDD Shared Conventions
+
+Structured Prompt-Driven Development (SPDD) turns requirements into REASONS Canvas prompts, then code, tests, and bidirectional sync.
+
+## Workflow
+
+```
+/spdd-story (optional)
+  -> /spdd-analysis
+  -> /spdd-reasons-canvas
+  -> /spdd-generate
+  -> /spdd-api-test
+  -> /spdd-sync or /spdd-prompt-update (iterate)
+```
+
+| Phase | Command | Output |
+|-------|---------|--------|
+| Story split | `/spdd-story` | `requirements/[User-story-N]*.md` |
+| Analysis | `/spdd-analysis` | `spdd/analysis/*-[Analysis]-*.md` |
+| Design prompt | `/spdd-reasons-canvas` | `spdd/prompt/*-[Feat\|Fix\|...]-*.md` |
+| Code | `/spdd-generate` | Source files |
+| API tests | `/spdd-api-test` | `scripts/test-api.sh` |
+| Code -> prompt | `/spdd-sync` | Updated prompt |
+| Intent -> prompt | `/spdd-prompt-update` | Updated prompt |
+
+**Core principle**: When behavior diverges from the spec, fix the prompt first, then the code. Commit prompt and code together.
+
+## Input handling
+
+1. Accept text and/or `@file` / `@folder` references after the command.
+2. If required input is missing, ask the user before proceeding.
+3. Read every referenced file completely; do not summarize or truncate.
+4. Merge all sources into one context; preserve original intent.
+5. If a reference fails to read, stop and report it.
+
+## File naming
+
+| Artifact | Pattern | JIRA fallback |
+|----------|---------|---------------|
+| Analysis | `{JIRA}-{YYYYMMDDHHmm}-[Analysis]-{kebab-desc}.md` | `GGQPA-XXX` |
+| Prompt | `{JIRA}-{YYYYMMDDHHmm}-[{Feat\|Fix\|Refactor\|Test\|Docs}]-{scope-}{kebab-desc}.md` | `GGQPA-XXX` |
+| Story | `[User-story-{N}]{kebab-title}.md` | next N in `requirements/` |
+
+Create output directories (`spdd/analysis/`, `spdd/prompt/`, `requirements/`, `scripts/`) when missing.
+
+## Concept-driven codebase exploration
+
+Use for `/spdd-analysis`, `/spdd-reasons-canvas`, and `/spdd-generate` when exploring code:
+
+1. **Fingerprint** (2-3 files): primary build file, top-level dirs, main config.
+2. **Extract concepts** from requirements: domain nouns, action verbs, API paths, technical hints.
+3. **Search scoped** to those concepts: migrations/schema, matching classes, one-hop dependencies.
+4. **Expand once** if an essential concept was missed; do not recurse further.
+5. Do not read the entire codebase. Do not guess; read matched files.
+
+Detect stack from the repo; do not hardcode Java/Spring unless the project uses them.
+
+## REASONS Canvas (overview)
+
+Prompt files contain seven sections: **R**equirements, **E**ntities, **A**pproach, **S**tructure, **O**perations, **N**orms, **S**afeguards.
+
+Detailed construction guidance: `.cursor/rules/spdd/reasons-framework.mdc`
+
+## Phase boundaries
+
+| Concern | Story / Analysis | REASONS Canvas | Generate |
+|---------|------------------|----------------|----------|
+| Level | What & why | How | Implementation |
+| Codebase | Analysis only (scoped) | Scoped exploration | Full execution |
+| Output detail | Business language | Spec language | Source code |
+
+## Universal guardrails
+
+- No placeholders or TODOs in deliverables.
+- Do not modify unrelated project files.
+- Do not generate code in story/analysis phases.
+- Ground analysis in actual files, not assumptions.
+- Preserve requirements verbatim when embedding them in analysis output.

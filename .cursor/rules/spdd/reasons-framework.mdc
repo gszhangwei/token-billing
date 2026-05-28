@@ -1,0 +1,87 @@
+---
+description: REASONS Canvas section construction for SPDD prompt files
+alwaysApply: false
+---
+
+# REASONS Canvas Framework
+
+Use when writing or updating `spdd/prompt/*.md` files (`/spdd-reasons-canvas`, `/spdd-prompt-update`, `/spdd-sync`).
+
+## Final prompt shape
+
+Include only these sections (fully populated, no framework metadata):
+
+```markdown
+# [Requirement Title]
+
+## Requirements
+## Entities
+## Approach
+## Structure
+## Operations
+## Norms
+## Safeguards
+```
+
+Optional: Acceptance Criteria Traceability table linking ACs to Operations.
+
+**Do not** include original business context, generation timestamps, or construction guidance in the saved prompt.
+
+## R - Requirements
+
+Concise verb phrases describing the essential problem and value. One-sentence essence; business focus, not feature lists.
+
+## E - Entities
+
+Mermaid `classDiagram` with core entities, DTOs, attributes (`+Type name`), relationships, and request/response flow.
+
+**Conservative design**: do not wrap simple types unnecessarily; extend existing structures; avoid breaking changes unless required.
+
+## A - Approach
+
+Numbered categories: solution direction, technical implementation (framework, integration, exception strategy), business logic (rules, validation, workflow). Include rationale and risks.
+
+## S - Structure
+
+- Inheritance relationships
+- Dependencies between components
+- Layered architecture with responsibilities per layer
+
+## O - Operations
+
+Executable tasks in **dependency order** (enums/constants first; no circular deps). Each task:
+
+1. Responsibility
+2. Package/path
+3. Attributes and method signatures
+4. Step-by-step logic and edge cases
+5. Annotations
+6. Validation and constraints
+
+Tasks must align with Entities and Structure. No gaps; no orphan components.
+
+## N - Norms
+
+Annotation standards, dependency injection style, exception handling, validation, logging, response format, documentation.
+
+## S - Safeguards
+
+Functional, performance, security, integration, business-rule, exception-handling, technical, data, and API constraints. Use measurable criteria where possible. Error messages must be exact and verifiable.
+
+## Prompt-as-spec rules (`/spdd-prompt-update`)
+
+- Minimal change: only touch affected sections.
+- No language-specific code blocks in prompts (no ```java etc.).
+- Describe contracts in natural language; Mermaid diagrams allowed.
+- Preserve filename and REASONS structure.
+
+## Sync priority (`/spdd-sync`)
+
+| Section | Sync priority |
+|---------|---------------|
+| Operations | Highest |
+| Entities, Structure | High |
+| Approach, Norms | Medium |
+| Requirements, Safeguards | Low (unless behavior changed) |
+
+Present an update plan to the user before applying destructive changes.

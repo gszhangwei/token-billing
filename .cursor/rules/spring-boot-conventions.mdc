@@ -1,0 +1,37 @@
+---
+description: Spring Boot and Java conventions for this repo
+globs: "**/*.java,**/application.yml,**/db/migration/**"
+alwaysApply: false
+---
+
+# Spring Boot Conventions
+
+## Dependencies already configured
+
+Use existing starters only unless the user asks for more: Web, Validation, Data JPA, Flyway, PostgreSQL driver, Lombok, spring-boot-starter-test.
+
+## Code style
+
+- Constructor injection (no field `@Autowired`).
+- `@RestController` + `@RequestMapping` or `@PostMapping` for API layer.
+- `@Service` for billing logic; `@Transactional` on write operations.
+- Spring Data JPA repositories for `customers`, `pricing_plans`, `customer_subscriptions`, `bills`.
+- Bean Validation on request DTOs (`@NotNull`, `@Min(0)`); map validation failures to HTTP 400 with clear messages.
+- `@RestControllerAdvice` + `@ExceptionHandler` for 404/400 domain errors.
+
+## Persistence
+
+- New tables/columns: add Flyway migration `V2__...sql`, never rely on Hibernate DDL generation.
+- Match column types from V1: UUID keys, `DECIMAL(10,2)` for charges, `DECIMAL(10,4)` for rates.
+- Entity/table names align with existing schema (`customers`, `bills`, snake_case columns).
+
+## Testing
+
+- `./gradlew test` — JUnit 5 via `spring-boot-starter-test`.
+- Prefer `@WebMvcTest` for controller contract tests and `@DataJpaTest` or service unit tests with mocks for billing math.
+- Integration tests may use H2 in test profile; keep production path on PostgreSQL + Flyway.
+- Assert exact HTTP status and error message strings from the story.
+
+## API tests
+
+Generated curl scripts go to `scripts/test-api.sh`. Default base URL `http://localhost:8080`. Reference seed IDs from V1 migration.

@@ -1,0 +1,41 @@
+---
+description: Update SPDD prompts from new requirements (/spdd-prompt-update)
+alwaysApply: false
+---
+
+# SPDD Prompt Update Phase (Intent -> Prompt)
+
+Apply new requirements or architectural changes to an existing `spdd/prompt/*.md`.
+
+## Steps
+
+1. **Validate input** — prompt file path **and** change instructions both required.
+
+2. **Read existing prompt** — all REASONS sections.
+
+3. **Map change to sections**:
+
+| Change | Sections |
+|--------|----------|
+| New feature | R, E, A, S, O, possibly N, S |
+| Architecture | A, S, O, N |
+| New entity | E, S, O |
+| New constraint | Safeguards, possibly O |
+| Coding standard | N, O |
+| Spec bug fix | Targeted section only |
+
+4. **Read codebase** if needed for new entities or patterns.
+
+5. **Apply minimal edits** — preserve unchanged sections; follow `reasons-framework.mdc` prompt-as-spec rules.
+
+6. **Validate cross-section consistency**.
+
+7. **Overwrite same filename** — do not rename.
+
+8. **Summarize** — changes per section, unchanged sections, review notes. Offer `/spdd-generate`.
+
+## Guardrails
+
+- Do not rewrite the whole file.
+- No placeholders; no code blocks in the prompt.
+- Do not contradict unchanged sections.

@@ -1,0 +1,43 @@
+---
+description: SPDD code generation from REASONS prompts (/spdd-generate)
+alwaysApply: false
+---
+
+# SPDD Generate Phase
+
+Implement code from `spdd/prompt/*.md` following Operations order exactly.
+
+## Steps
+
+1. **Validate input** — prompt file path required; ask if missing.
+
+2. **Read entire prompt** — parse all REASONS sections (see `reasons-framework.mdc`).
+
+3. **Analyze project context** — stack, package layout, existing patterns to reuse.
+
+4. **Validate Operations sequence** — dependency order, completeness vs Structure, no circular deps. Report issues before coding; do not reorder Operations.
+
+5. **Generate code** — for each Operation in order:
+   - Match signatures, fields, annotations, logic steps
+   - Apply Norms (DI style, exceptions, logging, responses)
+   - Enforce Safeguards (status codes, **exact error messages**)
+   - Do not add unspecified features
+
+6. **Batch validate** — linter/compile check; AC traceability if present; layering and DI correctness; fix issues.
+
+7. **Report** — files created, assumptions, validation results.
+
+## Iteration
+
+If behavior is wrong after generation:
+
+1. Trace issue to prompt section (R/E/A/S/O/N/S)
+2. Update prompt first (`/spdd-prompt-update` or manual edit)
+3. Regenerate affected components only
+4. Commit prompt and code together
+
+## Guardrails
+
+- Do not skip Operations or change Safeguard messages.
+- Do not patch code without updating the prompt when spec is wrong.
+- Align with existing project conventions.

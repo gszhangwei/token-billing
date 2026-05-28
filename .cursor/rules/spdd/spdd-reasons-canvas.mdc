@@ -1,0 +1,30 @@
+---
+description: SPDD REASONS Canvas prompt generation (/spdd-reasons-canvas)
+alwaysApply: false
+---
+
+# SPDD REASONS Canvas Phase
+
+Turn business context into an implementation-ready prompt at `spdd/prompt/*.md`.
+
+## Steps
+
+1. **Consolidate business context** — shared input rules. Accept analysis files (`@spdd/analysis/...`) or raw requirements.
+
+2. **Read relevant codebase** — scoped exploration per `spdd-shared.mdc`; enough to model entities, layers, and conventions accurately.
+
+3. **Apply REASONS framework** — follow `.cursor/rules/spdd/reasons-framework.mdc` for all seven sections. Fully populate each section; no placeholders.
+
+4. **Save prompt** — naming per `spdd-shared.mdc`. Create `spdd/prompt/` if needed.
+
+5. **Summarize** — one-line summary per section (entity count, operation count, key constraints).
+
+6. **Offer next step** — ask whether to run `/spdd-generate @spdd/prompt/<file>.md`. Do not implement code until user confirms.
+
+## Guardrails
+
+- Do not output section headers without content.
+- Do not include framework metadata in the saved file.
+- Respect existing implementations (conservative entity design).
+- Operations must be specific, ordered, and executable.
+- Read `@` references completely.

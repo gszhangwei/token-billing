@@ -1,0 +1,40 @@
+---
+description: SPDD story decomposition phase (/spdd-story)
+alwaysApply: false
+---
+
+# SPDD Story Phase
+
+Split high-level features into INVEST-compliant stories. **Do not explore the codebase** (that is `/spdd-analysis`).
+
+## Steps
+
+1. **Consolidate input** — follow shared input rules; stop if missing.
+
+2. **Scan `requirements/`** — read existing stories for numbering, scope, and gaps. Next story number = highest `[User-story-N]` + 1.
+
+3. **INVEST analysis** — for the feature, document:
+   - Abstract task: core responsibility, primary operations, constraints, complexity
+   - INVEST checklist (Independent, Negotiable, Valuable, Estimable, Small, Testable)
+   - Split strategy if needed (by operation, complexity, role, or dependency — not by technical layer)
+
+4. **Split rules** — each story: 1-5 days, at most 2-3 related functional points, independent business value.
+
+5. **Generate each story** with sections:
+   - `[STORY-{MODULE}-{SEQ}]` title
+   - Background, Business Value, Dependencies and Assumptions
+   - Scope In / Scope Out
+   - Acceptance Criteria (Given-When-Then, concrete numbers, business language; HTTP status OK in ACs)
+
+6. **Quality check** — structure complete; ACs testable without source code; no implementation prescriptions; no overlap with existing stories.
+
+7. **Save** to `requirements/[User-story-{N}]{kebab-title}.md` (one file per story or one consolidated file if closely related). Include INVEST analysis at top.
+
+8. **Summarize** — story count, AC count, effort estimate. Offer `/spdd-analysis @requirements/<file>.md`.
+
+## Guardrails
+
+- No code generation.
+- No splitting one API endpoint across many stories.
+- No complex inter-story dependencies.
+- No technical solutions in ACs (caching, SQL, JSON shapes, P95 metrics belong in later phases).

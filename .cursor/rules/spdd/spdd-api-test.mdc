@@ -1,0 +1,40 @@
+---
+description: SPDD API curl test script generation (/spdd-api-test)
+alwaysApply: false
+---
+
+# SPDD API Test Phase
+
+Generate `scripts/test-api.sh` — self-contained bash + curl, no jq/python.
+
+## Steps
+
+1. **Consolidate input** — controllers, prompts, requirements, or `@folder` with API code. Extract endpoints, schemas, ACs, error messages.
+
+2. **Find seed data** — check `src/main/resources/db/migration/`, `src/test/resources/`, `fixtures/`, `scripts/seed*.sql`. Document IDs and quotas in script comments.
+
+3. **Design test tables** — group by pattern (validation errors, happy path, edge cases). Map each AC to a test ID.
+
+4. **Generate script** — start from `spdd/template/api-test-script-skeleton.sh`:
+   - Commented overview table at top (human review)
+   - One direct `curl` per test (no `eval`)
+   - `-m 10`, `-o /tmp/response.txt`, `-w "%{http_code}"`
+   - `check_result` for pass/fail tracking and summary table
+   - Cover all ACs plus edge cases (zero values, missing fields, not-found)
+
+5. **Write and chmod** — `scripts/test-api.sh`, `chmod +x`.
+
+6. **Summarize** — test counts by category, seed data used, usage: `./scripts/test-api.sh [BASE_URL]`.
+
+## curl rules
+
+- Use `"${BASE_URL}"` for URLs.
+- Single-quoted JSON in `-d`.
+- Do not use `-w "\n%{http_code}"` or pipes in `-w` format strings.
+- Error messages in expectations must match the API.
+- Exit 1 if any test fails.
+
+## Guardrails
+
+- Verify paths, request bodies, and error messages against actual code.
+- Read all `@` references completely.

@@ -1,0 +1,56 @@
+---
+description: Token Billing Service — project context, stack, and layout
+alwaysApply: true
+---
+
+# Token Billing Service
+
+Spring Boot app that calculates LLM token usage bills. Primary spec: `requirements/token-usage-billing-story.md`.
+
+## Stack
+
+- Java 21, Gradle, Spring Boot 3.5
+- Spring Web, Validation, Data JPA
+- Flyway migrations (`src/main/resources/db/migration/`)
+- PostgreSQL (runtime); H2 available for tests only
+- Lombok allowed (already on classpath)
+
+## Run locally
+
+```bash
+docker compose up -d          # Postgres on localhost:54323, db token_billing
+./gradlew bootRun             # default http://localhost:8080
+./gradlew test
+```
+
+Datasource (from `application.yml`): `jdbc:postgresql://localhost:54323/token_billing`, user/password `postgres`. JPA `ddl-auto: validate` — schema changes only via Flyway.
+
+## Package layout
+
+Base package: `org.tw.token_billing`
+
+Suggested layers (greenfield — no code yet):
+
+```
+org.tw.token_billing
+  controller/     REST endpoints
+  service/        billing logic
+  repository/     Spring Data JPA
+  domain/         entities (optional) or map from JPA entities
+  dto/            request/response records
+  exception/      domain exceptions + @RestControllerAdvice handler
+```
+
+Keep new code under `src/main/java/org/tw/token_billing/`. Tests mirror under `src/test/java/`.
+
+## SPDD workflow
+
+Use `/spdd-*` commands with rules in `.cursor/rules/spdd/`. Outputs go to `spdd/analysis/`, `spdd/prompt/`, and `scripts/test-api.sh`.
+
+When implementing, align REASONS prompts and code with domain rules in `token-billing-domain.mdc`.
+
+## Scope reminder (from story)
+
+**In:** `POST /api/usage` only.
+
+**Out:** customer CRUD, bill history queries, automated monthly quota reset jobs.

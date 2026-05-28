@@ -1,0 +1,58 @@
+---
+description: SPDD strategic analysis phase (/spdd-analysis)
+alwaysApply: false
+---
+
+# SPDD Analysis Phase
+
+Produce strategic enriched context for `/spdd-reasons-canvas`. Focus **What** and **Why**, not **How**.
+
+## Steps
+
+1. **Consolidate business input** — shared input rules; preserve requirement text verbatim for output.
+
+2. **Concept-driven exploration** — follow `spdd-shared.mdc` exploration steps. Also scan `spdd/prompt/` and `spdd/analysis/` for relevant prior artifacts.
+
+3. **Domain concept identification** (conceptual only — no DTOs, signatures, or SQL):
+   - Existing concepts (from codebase)
+   - New concepts required
+   - Key business rules (explicit and implicit)
+
+4. **Strategic approach** — solution direction, key design decisions with trade-offs, alternatives considered. High-level data flow only.
+
+5. **Risk & gap analysis**:
+   - Requirement ambiguities
+   - Edge cases not in ACs
+   - Technical risks
+   - AC coverage table: every AC with Addressable? and Gaps/Notes
+
+6. **Assemble document**:
+
+```markdown
+# SPDD Analysis: [Title]
+
+## Original Business Requirement
+[verbatim]
+
+## Domain Concept Identification
+...
+
+## Strategic Approach
+...
+
+## Risk & Gap Analysis
+...
+```
+
+Do not add a separate "Codebase Context Summary" section.
+
+7. **Save** to `spdd/analysis/{JIRA}-{TIMESTAMP}-[Analysis]-{desc}.md`
+
+8. **Summarize** — project type, concept counts, AC coverage, open risks. Offer `/spdd-reasons-canvas @spdd/analysis/<file>.md`.
+
+## Guardrails
+
+- No code generation.
+- No implementation details (queries, JSON, annotations, method signatures).
+- Must explore codebase via concepts; must not read entire repo.
+- Surface ambiguities; do not silently assume.
