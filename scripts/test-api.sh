@@ -1,17 +1,19 @@
 #!/bin/bash
 # =============================================================================
-# API Test Script — Token Usage Billing
-# Endpoint: POST /api/usage
+# API Test Script — Token Usage Billing + Quota Status Lookup
+# Endpoints:
+#   POST /api/usage
+#   GET  /api/quota/{customerId}
 # Usage: ./scripts/test-api.sh [BASE_URL]
 #        Default BASE_URL: http://localhost:8080
 #
 # Requirements: bash, curl (no jq). Timeout -m 10 on every request.
 #
-# Quota tests (AC3, AC4) reset CUST-001 bills via Docker when available.
+# Quota tests reset/seed CUST-001 bills via POST /api/usage (and Docker reset).
 # Ensure: docker compose up -d && ./gradlew bootRun
 # =============================================================================
 #
-# TEST CASE OVERVIEW
+# TEST CASE OVERVIEW — Usage billing (POST /api/usage)
 # | Test ID | Description                    | Customer   | Expected HTTP |
 # |---------|--------------------------------|------------|---------------|
 # | AC1     | Customer not found             | INVALID    | 404           |
@@ -22,6 +24,16 @@
 # | AC5     | Successful bill response       | CUST-002   | 201           |
 # | AC3     | Within quota (60k used + 30k)  | CUST-001   | 201           |
 # | AC4     | Overage billing (80k + 50k)    | CUST-001   | 201           |
+#
+# TEST CASE OVERVIEW — Quota lookup (GET /api/quota/{customerId})
+# | Test ID | Description                         | Customer   | Expected HTTP |
+# |---------|-------------------------------------|------------|---------------|
+# | QAC1    | Unknown customer                    | UNKNOWN    | 404           |
+# | QAC4    | No usage this month                 | CUST-001   | 200           |
+# | QAC2    | Within quota (60k used)             | CUST-001   | 200           |
+# | QAC3    | Remaining floored at zero (120k)    | CUST-001   | 200           |
+# | QAC5    | Active plan alignment (FREE tier)   | CUST-002   | 200           |
+# | QAC6    | No bill history in response         | CUST-001   | 200           |
 #
 # SEED DATA (V1 migration)
 # CUST-001 -> PLAN-STARTER: 100,000 quota, $0.02/1K overage
@@ -120,12 +132,42 @@ check_body_contains() {
     return 1
 }
 
+# Fail when response body contains a forbidden pattern (e.g. bill fields on quota response)
+check_body_not_contains() {
+    local test_id="$1"
+    local pattern="$2"
+    local body="$3"
+
+    if echo "$body" | grep -Eq "$pattern"; then
+        echo -e "${RED}Body check FAILED${NC} (forbidden pattern found: $pattern)"
+        TESTS_PASSED=$((TESTS_PASSED - 1))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        for i in "${!TEST_IDS[@]}"; do
+            if [ "${TEST_IDS[$i]}" = "$test_id" ] && [ "${TEST_RESULTS[$i]}" = "PASS" ]; then
+                TEST_RESULTS[$i]="FAIL"
+                break
+            fi
+        done
+        return 1
+    fi
+
+    echo -e "${GREEN}Body check PASSED${NC} (forbidden pattern absent: $pattern)"
+    return 0
+}
+
 post_usage() {
     local json_body="$1"
     HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST "${BASE_URL}/api/usage" \
         -H "Content-Type: application/json" \
         -m 10 \
         -d "$json_body")
+    BODY=$(cat /tmp/response.txt)
+}
+
+get_quota() {
+    local customer_id="$1"
+    HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -X GET "${BASE_URL}/api/quota/${customer_id}" \
+        -m 10)
     BODY=$(cat /tmp/response.txt)
 }
 
@@ -154,8 +196,143 @@ print_results_table() {
 }
 
 # =============================================================================
-# AC1: Customer not found -> 404
+# QUOTA LOOKUP TESTS (GET /api/quota/{customerId})
 # =============================================================================
+
+# QAC1: Unknown customer -> 404
+TEST_ID="QAC1"
+TEST_DESC="Quota unknown customer"
+EXPECTED="404"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED, message: Customer not found"
+print_result
+get_quota "UNKNOWN-CUSTOMER"
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+check_body_contains "$TEST_ID" '"message":"Customer not found"' "$BODY"
+
+# QAC4: No usage this month -> 0 used, full remaining
+reset_cust001_bills
+TEST_ID="QAC4"
+TEST_DESC="Quota no usage this month"
+EXPECTED="200"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED, tokensUsedThisMonth 0, remainingQuota 100000"
+print_result
+get_quota "CUST-001"
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+check_body_contains "$TEST_ID" '"customerId":"CUST-001"' "$BODY"
+check_body_contains "$TEST_ID" '"monthlyQuota":100000' "$BODY"
+check_body_contains "$TEST_ID" '"tokensUsedThisMonth":0' "$BODY"
+check_body_contains "$TEST_ID" '"remainingQuota":100000' "$BODY"
+check_body_contains "$TEST_ID" '"overageRatePer1k":0\.02' "$BODY"
+
+# QAC2: 60,000 used -> remaining 40,000
+TEST_ID="QAC2-setup"
+TEST_DESC="Seed 60000 tokens for quota"
+EXPECTED="201"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED"
+print_result
+post_usage '{"customerId":"CUST-001","promptTokens":60000,"completionTokens":0}'
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+
+TEST_ID="QAC2"
+TEST_DESC="Quota within allowance"
+EXPECTED="200"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED, used 60000, remaining 40000, rate 0.02"
+print_result
+get_quota "CUST-001"
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+check_body_contains "$TEST_ID" '"tokensUsedThisMonth":60000' "$BODY"
+check_body_contains "$TEST_ID" '"remainingQuota":40000' "$BODY"
+check_body_contains "$TEST_ID" '"overageRatePer1k":0\.02' "$BODY"
+
+# QAC3: 120,000 used -> remaining 0
+reset_cust001_bills
+TEST_ID="QAC3-setup"
+TEST_DESC="Seed 120000 tokens for quota"
+EXPECTED="201"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED"
+print_result
+post_usage '{"customerId":"CUST-001","promptTokens":120000,"completionTokens":0}'
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+
+TEST_ID="QAC3"
+TEST_DESC="Quota remaining floored at 0"
+EXPECTED="200"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED, used 120000, remaining 0"
+print_result
+get_quota "CUST-001"
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+check_body_contains "$TEST_ID" '"tokensUsedThisMonth":120000' "$BODY"
+check_body_contains "$TEST_ID" '"remainingQuota":0' "$BODY"
+
+# QAC5: Active subscription alignment — CUST-002 on PLAN-FREE
+TEST_ID="QAC5"
+TEST_DESC="Quota active plan alignment"
+EXPECTED="200"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED, monthlyQuota 10000, overageRatePer1k 0.03"
+print_result
+get_quota "CUST-002"
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+check_body_contains "$TEST_ID" '"customerId":"CUST-002"' "$BODY"
+check_body_contains "$TEST_ID" '"monthlyQuota":10000' "$BODY"
+check_body_contains "$TEST_ID" '"overageRatePer1k":0\.03' "$BODY"
+
+# QAC6: Multiple bills aggregated; no bill history fields
+reset_cust001_bills
+TEST_ID="QAC6-setup-a"
+TEST_DESC="Seed first bill for QAC6"
+EXPECTED="201"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED"
+print_result
+post_usage '{"customerId":"CUST-001","promptTokens":10000,"completionTokens":0}'
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+
+TEST_ID="QAC6-setup-b"
+TEST_DESC="Seed second bill for QAC6"
+EXPECTED="201"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED"
+print_result
+post_usage '{"customerId":"CUST-001","promptTokens":5000,"completionTokens":0}'
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+
+TEST_ID="QAC6"
+TEST_DESC="Quota no bill history exposure"
+EXPECTED="200"
+TESTS_TOTAL=$((TESTS_TOTAL + 1))
+print_test_header "$TEST_ID: $TEST_DESC"
+print_expected "HTTP $EXPECTED, aggregated used 15000, no bill id/charge/timestamp fields"
+print_result
+get_quota "CUST-001"
+check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
+check_body_contains "$TEST_ID" '"tokensUsedThisMonth":15000' "$BODY"
+check_body_not_contains "$TEST_ID" '"totalCharge"' "$BODY"
+check_body_not_contains "$TEST_ID" '"calculatedAt"' "$BODY"
+check_body_not_contains "$TEST_ID" '"includedTokensUsed"' "$BODY"
+check_body_not_contains "$TEST_ID" '"overageTokens"' "$BODY"
+check_body_not_contains "$TEST_ID" '"id":' "$BODY"
+
+# =============================================================================
+# USAGE BILLING TESTS (POST /api/usage)
+# =============================================================================
+
+# AC1: Customer not found -> 404
 TEST_ID="AC1"
 TEST_DESC="Customer not found"
 EXPECTED="404"
@@ -167,9 +344,7 @@ post_usage '{"customerId":"NON-EXISTENT","promptTokens":1000,"completionTokens":
 check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
 check_body_contains "$TEST_ID" '"message":"Customer not found"' "$BODY"
 
-# =============================================================================
 # AC2a: Negative prompt tokens -> 400
-# =============================================================================
 TEST_ID="AC2a"
 TEST_DESC="Negative prompt tokens"
 EXPECTED="400"
@@ -181,9 +356,7 @@ post_usage '{"customerId":"CUST-001","promptTokens":-1,"completionTokens":500}'
 check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
 check_body_contains "$TEST_ID" '"message":"Token count cannot be negative"' "$BODY"
 
-# =============================================================================
 # AC2b: Negative completion tokens -> 400
-# =============================================================================
 TEST_ID="AC2b"
 TEST_DESC="Negative completion tokens"
 EXPECTED="400"
@@ -195,9 +368,7 @@ post_usage '{"customerId":"CUST-001","promptTokens":100,"completionTokens":-5}'
 check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
 check_body_contains "$TEST_ID" '"message":"Token count cannot be negative"' "$BODY"
 
-# =============================================================================
 # EDGE1: Zero tokens -> 201
-# =============================================================================
 TEST_ID="EDGE1"
 TEST_DESC="Zero token submission"
 EXPECTED="201"
@@ -209,9 +380,7 @@ post_usage '{"customerId":"CUST-002","promptTokens":0,"completionTokens":0}'
 check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
 check_body_contains "$TEST_ID" '"totalTokens":0' "$BODY"
 
-# =============================================================================
 # EDGE2: Missing customerId -> 400
-# =============================================================================
 TEST_ID="EDGE2"
 TEST_DESC="Missing customerId"
 EXPECTED="400"
@@ -222,9 +391,7 @@ print_result
 post_usage '{"promptTokens":100,"completionTokens":50}'
 check_result "$TEST_ID" "$TEST_DESC" "$EXPECTED" "$HTTP_CODE" "$BODY"
 
-# =============================================================================
 # AC5: Successful 201 with bill fields
-# =============================================================================
 TEST_ID="AC5"
 TEST_DESC="Successful bill response"
 EXPECTED="201"
@@ -242,9 +409,7 @@ check_body_contains "$TEST_ID" '"totalCharge":' "$BODY"
 check_body_contains "$TEST_ID" '"calculatedAt":' "$BODY"
 check_body_contains "$TEST_ID" '"id":' "$BODY"
 
-# =============================================================================
 # AC3: Within quota — 60,000 used then submit 30,000
-# =============================================================================
 reset_cust001_bills
 TEST_ID="AC3-setup"
 TEST_DESC="Seed 60000 tokens used"
@@ -270,9 +435,7 @@ check_body_contains "$TEST_ID" '"includedTokensUsed":30000' "$BODY"
 check_body_contains "$TEST_ID" '"overageTokens":0' "$BODY"
 check_body_contains "$TEST_ID" '"totalCharge":0' "$BODY"
 
-# =============================================================================
 # AC4: Overage — 80,000 used then submit 50,000 -> charge $0.60
-# =============================================================================
 reset_cust001_bills
 TEST_ID="AC4-setup"
 TEST_DESC="Seed 80000 tokens used"
