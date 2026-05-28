@@ -6,6 +6,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tw.token_billing.dto.BillResponse;
+import org.tw.token_billing.dto.QuotaStatusResponse;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.CustomerSubscription;
 import org.tw.token_billing.entity.PricingPlan;
@@ -81,6 +82,53 @@ class BillingServiceImplTest {
         assertThat(response.includedTokensUsed()).isEqualTo(20_000);
         assertThat(response.overageTokens()).isEqualTo(30_000);
         assertThat(response.totalCharge()).isEqualByComparingTo("0.60");
+    }
+
+    @Test
+    void should_throw_when_customer_not_found_on_quota_lookup() {
+        when(customerRepository.existsById("UNKNOWN")).thenReturn(false);
+
+        assertThatThrownBy(() -> billingService.getQuotaStatus("UNKNOWN"))
+                .isInstanceOf(CustomerNotFoundException.class);
+    }
+
+    @Test
+    void should_return_quota_status_within_quota() {
+        stubActiveStarterPlan();
+        when(billRepository.sumTotalTokensByCustomerIdAndCalculatedAtBetween(eq("CUST-001"), any(), any()))
+                .thenReturn(60_000L);
+
+        QuotaStatusResponse response = billingService.getQuotaStatus("CUST-001");
+
+        assertThat(response.customerId()).isEqualTo("CUST-001");
+        assertThat(response.monthlyQuota()).isEqualTo(100_000);
+        assertThat(response.tokensUsedThisMonth()).isEqualTo(60_000L);
+        assertThat(response.remainingQuota()).isEqualTo(40_000);
+        assertThat(response.overageRatePer1k()).isEqualByComparingTo("0.02");
+    }
+
+    @Test
+    void should_floor_remaining_quota_at_zero() {
+        stubActiveStarterPlan();
+        when(billRepository.sumTotalTokensByCustomerIdAndCalculatedAtBetween(eq("CUST-001"), any(), any()))
+                .thenReturn(120_000L);
+
+        QuotaStatusResponse response = billingService.getQuotaStatus("CUST-001");
+
+        assertThat(response.tokensUsedThisMonth()).isEqualTo(120_000L);
+        assertThat(response.remainingQuota()).isZero();
+    }
+
+    @Test
+    void should_return_full_quota_when_no_usage_this_month() {
+        stubActiveStarterPlan();
+        when(billRepository.sumTotalTokensByCustomerIdAndCalculatedAtBetween(eq("CUST-001"), any(), any()))
+                .thenReturn(0L);
+
+        QuotaStatusResponse response = billingService.getQuotaStatus("CUST-001");
+
+        assertThat(response.tokensUsedThisMonth()).isZero();
+        assertThat(response.remainingQuota()).isEqualTo(100_000);
     }
 
     private void stubActiveStarterPlan() {

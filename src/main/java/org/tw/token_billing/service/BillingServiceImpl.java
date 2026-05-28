@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tw.token_billing.dto.BillResponse;
+import org.tw.token_billing.dto.QuotaStatusResponse;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.Bill;
 import org.tw.token_billing.entity.CustomerSubscription;
@@ -45,31 +46,13 @@ public class BillingServiceImpl implements BillingService {
     @Override
     @Transactional
     public BillResponse submitUsage(UsageRequest request) {
-        if (!customerRepository.existsById(request.customerId())) {
-            throw new CustomerNotFoundException();
-        }
+        MonthlyQuotaContext context = resolveMonthlyQuotaContext(request.customerId());
 
-        LocalDate asOfDate = LocalDate.now(ZoneOffset.UTC);
-        CustomerSubscription subscription = customerSubscriptionRepository
-                .findActiveByCustomerId(request.customerId(), asOfDate)
-                .orElseThrow(NoActiveSubscriptionException::new);
-
-        PricingPlan plan = pricingPlanRepository
-                .findById(subscription.getPlanId())
-                .orElseThrow(NoActiveSubscriptionException::new);
-
-        Instant monthStart = asOfDate.withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant monthEnd = asOfDate.plusMonths(1).withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant();
-
-        long currentMonthUsage = billRepository.sumTotalTokensByCustomerIdAndCalculatedAtBetween(
-                request.customerId(), monthStart, monthEnd);
-
-        int remainingQuota = Math.max(0, plan.getMonthlyQuota() - (int) currentMonthUsage);
         int totalTokens = request.promptTokens() + request.completionTokens();
-        int includedTokensUsed = Math.min(totalTokens, remainingQuota);
+        int includedTokensUsed = Math.min(totalTokens, context.remainingQuota());
         int overageTokens = totalTokens - includedTokensUsed;
 
-        BigDecimal totalCharge = plan.getOverageRatePer1k()
+        BigDecimal totalCharge = context.plan().getOverageRatePer1k()
                 .multiply(BigDecimal.valueOf(overageTokens))
                 .divide(BigDecimal.valueOf(1000), 2, RoundingMode.HALF_UP);
 
@@ -89,5 +72,37 @@ public class BillingServiceImpl implements BillingService {
         log.info("Bill created id={} customerId={}", saved.getId(), saved.getCustomerId());
 
         return BillResponse.from(saved);
+    }
+
+    @Override
+    public QuotaStatusResponse getQuotaStatus(String customerId) {
+        MonthlyQuotaContext context = resolveMonthlyQuotaContext(customerId);
+        log.info("Quota status lookup customerId={}", customerId);
+        return QuotaStatusResponse.from(
+                customerId, context.plan(), context.currentMonthUsage(), context.remainingQuota());
+    }
+
+    private MonthlyQuotaContext resolveMonthlyQuotaContext(String customerId) {
+        if (!customerRepository.existsById(customerId)) {
+            throw new CustomerNotFoundException();
+        }
+
+        LocalDate asOfDate = LocalDate.now(ZoneOffset.UTC);
+        CustomerSubscription subscription = customerSubscriptionRepository
+                .findActiveByCustomerId(customerId, asOfDate)
+                .orElseThrow(NoActiveSubscriptionException::new);
+
+        PricingPlan plan = pricingPlanRepository
+                .findById(subscription.getPlanId())
+                .orElseThrow(NoActiveSubscriptionException::new);
+
+        Instant monthStart = asOfDate.withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant monthEnd = asOfDate.plusMonths(1).withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+
+        long currentMonthUsage = billRepository.sumTotalTokensByCustomerIdAndCalculatedAtBetween(
+                customerId, monthStart, monthEnd);
+
+        int remainingQuota = Math.max(0, plan.getMonthlyQuota() - (int) currentMonthUsage);
+        return new MonthlyQuotaContext(plan, currentMonthUsage, remainingQuota);
     }
 }
