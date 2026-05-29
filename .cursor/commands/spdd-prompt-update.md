@@ -13,15 +13,15 @@ Update an existing SPDD (Structured Prompt-Driven Development) prompt file with 
 
 ```
 # Update with architectural principles
-/spdd-prompt-update @spdd/prompt/GGQPA-XXX-202603131758-[Feat]-api-token-usage-billing.md
+/spdd-prompt-update @spdd/prompt/SPDD-XXX-202603131758-[Feat]-api-token-usage-billing.md
 Add three-layer architecture with dependency inversion principle
 
 # Update with new requirements
-/spdd-prompt-update @spdd/prompt/GGQPA-XXX-202603131758-[Feat]-api-token-usage-billing.md
+/spdd-prompt-update @spdd/prompt/SPDD-XXX-202603131758-[Feat]-api-token-usage-billing.md
 Add support for batch usage submission
 
 # Update specific section
-/spdd-prompt-update @spdd/prompt/GGQPA-XXX-202603131758-[Feat]-api-token-usage-billing.md
+/spdd-prompt-update @spdd/prompt/SPDD-XXX-202603131758-[Feat]-api-token-usage-billing.md
 Update Safeguards section to add rate limiting constraints
 ```
 
@@ -105,22 +105,47 @@ Update Safeguards section to add rate limiting constraints
 8. **Show update summary**
 
    ```
-   ✅ SPDD prompt updated: `spdd/prompt/<file-name>.md`
+   SPDD prompt updated: `spdd/prompt/<file-name>.md`
 
-   📋 Changes made:
+   Changes made:
    - [Section]: [Summary of changes]
    - [Section]: [Summary of changes]
 
-   🔍 Sections unchanged:
+   Sections unchanged:
    - [List of sections that were not modified]
 
-   ⚠️ Review recommendations:
+   Review recommendations:
    - [Any areas that may need manual review]
    ```
 
-9. **Ask for confirmation**
+9. **Record one refine-loop iteration via `/spdd-meta-refine`** (Docs-as-Code automation)
 
-   > "The SPDD prompt has been updated. Would you like me to regenerate the affected code using `/spdd-generate`?"
+   A prompt update is, by definition, a refine-loop iteration — even if no code is regenerated yet. Delegate the metadata write to the canonical `/spdd-meta-refine` command instead of mutating frontmatter inline.
+
+   a. **Locate the source story file** by tracing the prompt's JIRA / story id back to a file under `requirements/` (same algorithm as Step 8 of `/spdd-generate`). Skip the delegation with a warning if no story can be matched.
+
+   b. **Invoke `/spdd-meta-refine`** for the located story file:
+
+   ```
+   /spdd-meta-refine --file @requirements/<story-file>.md --reason prompt-update
+   ```
+
+   - Always pass `--reason prompt-update` so the run report distinguishes prompt-edit iterations from generation iterations.
+   - This is invoked even when no code is regenerated — a prompt edit is itself an AI-mediated refine step that the team wants reflected in `ai_refine_loops`.
+
+   c. **Surface the diff** that `/spdd-meta-refine` returned in the post-update message verbatim, e.g.:
+
+   ```
+   📌 Story metadata updated (requirements/[User-story-7]token-billing.md):
+      - quality_metrics.ai_refine_loops: 4 → 5
+      - reason: prompt-update
+   ```
+
+   If `/spdd-meta-refine` aborts (e.g., file lacks frontmatter), propagate its error and instruct the user to run `/spdd-meta-init` or regenerate via `/spdd-story`. Do NOT fall back to writing frontmatter inline.
+
+10. **Ask for confirmation**
+
+    > "The SPDD prompt has been updated. Would you like me to regenerate the affected code using `/spdd-generate`?"
 
 **Output**
 
@@ -136,6 +161,8 @@ The updated SPDD prompt file with changes integrated while preserving the REASON
 - Do NOT rename the file - preserve the original filename
 - Preserve the REASONS Canvas structure (all 7 sections must remain)
 - Validate that updates don't contradict existing unchanged content
+- Always delegate metadata mutation to `/spdd-meta-refine` per Step 9 — do NOT mutate the source story's frontmatter inline from this command
+- If `/spdd-meta-refine` aborts, propagate its error verbatim and stop — do NOT retry by writing frontmatter inline
 
 **No Code Block Rules** (CRITICAL):
 

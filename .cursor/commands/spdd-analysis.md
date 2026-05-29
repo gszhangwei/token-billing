@@ -37,59 +37,59 @@ Input can be provided in two ways:
    **IMPORTANT**: Do NOT proceed without business input.
 
    b. **If input contains `@` file/folder references**:
-   - Read ALL referenced files completely using the Read tool
-   - For folder references, read all relevant files within the folder
-   - Consolidate all file contents into a unified business context
+    - Read ALL referenced files completely using the Read tool
+    - For folder references, read all relevant files within the folder
+    - Consolidate all file contents into a unified business context
 
    c. **Combine all context sources**:
-   - Merge text descriptions with file contents
-   - Preserve the complete information from all sources — do NOT summarize or truncate
+    - Merge text descriptions with file contents
+    - Preserve the complete information from all sources — do NOT summarize or truncate
 
    d. **Context Integrity Check**:
-   - Verify all `@` references were successfully read
-   - If any file cannot be read, report the error and ask user to provide alternative
-   - Confirm the consolidated context contains sufficient information to proceed
+    - Verify all `@` references were successfully read
+    - If any file cannot be read, report the error and ask user to provide alternative
+    - Confirm the consolidated context contains sufficient information to proceed
 
 2. **Concept-driven codebase exploration**
 
    Do NOT exhaustively read the entire codebase — this does not scale. Instead, use a **concept-driven** approach: first build a lightweight project fingerprint, then extract search concepts from the business requirement, and finally explore only the relevant parts of the codebase in depth.
 
    a. **Project fingerprint (lightweight bootstrap — always do first)**:
-   - Read the **primary** build/dependency file (ONE file: e.g., `build.gradle`, `pom.xml`, `package.json`, `requirements.txt`, `go.mod`) to detect the tech stack, framework, and key dependencies
-   - List the top-level directory structure (directory names only, not file contents) to understand the project layout and layering conventions
-   - Read the **main** configuration file (e.g., `application.yml`, `.env`, `next.config.js`) to understand infrastructure choices (DB, caching, messaging, etc.)
-   - This step should be fast and touch only 2–3 files
+    - Read the **primary** build/dependency file (ONE file: e.g., `build.gradle`, `pom.xml`, `package.json`, `requirements.txt`, `go.mod`) to detect the tech stack, framework, and key dependencies
+    - List the top-level directory structure (directory names only, not file contents) to understand the project layout and layering conventions
+    - Read the **main** configuration file (e.g., `application.yml`, `.env`, `next.config.js`) to understand infrastructure choices (DB, caching, messaging, etc.)
+    - This step should be fast and touch only 2–3 files
 
    b. **Extract search concepts from business input**:
    Before touching any domain code, analyze the business requirement from Step 1 to extract:
-   - **Domain nouns**: entity/concept names that likely map to code (e.g., "customer", "bill", "pricing plan", "subscription", "quota")
-   - **Action verbs**: operations that likely map to endpoints or services (e.g., "submit usage", "calculate bill")
-   - **API surfaces**: explicit paths, event names, or queue names mentioned (e.g., `POST /api/usage`)
-   - **Technical hints**: mentioned technologies, patterns, or domain-specific terms (e.g., "monthly reset", "overage rate", "token")
+    - **Domain nouns**: entity/concept names that likely map to code (e.g., "customer", "bill", "pricing plan", "subscription", "quota")
+    - **Action verbs**: operations that likely map to endpoints or services (e.g., "submit usage", "calculate bill")
+    - **API surfaces**: explicit paths, event names, or queue names mentioned (e.g., `POST /api/usage`)
+    - **Technical hints**: mentioned technologies, patterns, or domain-specific terms (e.g., "monthly reset", "overage rate", "token")
 
    These extracted concepts become the **search scope** for all subsequent exploration.
 
    c. **Targeted schema exploration (scoped by concepts)**:
-   - Search migration/schema files for tables whose names match the extracted domain nouns — do NOT read all migrations
-   - Read ONLY the matched migrations or schema definitions
-   - Follow foreign key relationships **one hop outward** from matched tables to capture boundary context (e.g., if `bills` references `customers`, read the `customers` table definition too)
-   - If using an ORM, search for entity/model classes matching the same concept names
+    - Search migration/schema files for tables whose names match the extracted domain nouns — do NOT read all migrations
+    - Read ONLY the matched migrations or schema definitions
+    - Follow foreign key relationships **one hop outward** from matched tables to capture boundary context (e.g., if `bills` references `customers`, read the `customers` table definition too)
+    - If using an ORM, search for entity/model classes matching the same concept names
 
    d. **Targeted code exploration (scoped by concepts)**:
-   - Search file names and class names for matches against the extracted concepts (e.g., `*Customer*`, `*Bill*`, `*Usage*`, `*Quota*`)
-   - Read matched files to understand existing business logic, validation, and error handling
-   - Follow direct code dependencies **one hop** (e.g., if `BillService` injects `SubscriptionRepository`, read that too — but don't keep chaining)
-   - From the matched files, observe architecture conventions in use (naming, layering, error format, validation style, test patterns)
-   - If no matching domain code exists (greenfield area), note this explicitly and rely on framework conventions inferred from dependencies
+    - Search file names and class names for matches against the extracted concepts (e.g., `*Customer*`, `*Bill*`, `*Usage*`, `*Quota*`)
+    - Read matched files to understand existing business logic, validation, and error handling
+    - Follow direct code dependencies **one hop** (e.g., if `BillService` injects `SubscriptionRepository`, read that too — but don't keep chaining)
+    - From the matched files, observe architecture conventions in use (naming, layering, error format, validation style, test patterns)
+    - If no matching domain code exists (greenfield area), note this explicitly and rely on framework conventions inferred from dependencies
 
    e. **Relevant SPDD context (scoped by concepts)**:
-   - List files in `spdd/prompt/` and `spdd/analysis/` (if the directories exist)
-   - Read ONLY those files whose filenames suggest relevance to the extracted concepts
-   - If none are relevant or the directories are absent, skip this step
+    - List files in `spdd/prompt/` and `spdd/analysis/` (if the directories exist)
+    - Read ONLY those files whose filenames suggest relevance to the extracted concepts
+    - If none are relevant or the directories are absent, skip this step
 
    f. **Controlled expansion (one additional hop only)**:
-   - If during steps 2c–2e you discover a concept that is clearly essential to the requirement but was NOT in the initial extraction (e.g., an unexpected foreign key, a shared utility), add it to the concept list and do **one more** targeted search for it
-   - Do NOT recursively expand beyond this single additional hop — stop and note the boundary
+    - If during steps 2c–2e you discover a concept that is clearly essential to the requirement but was NOT in the initial extraction (e.g., an unexpected foreign key, a shared utility), add it to the concept list and do **one more** targeted search for it
+    - Do NOT recursively expand beyond this single additional hop — stop and note the boundary
 
    **IMPORTANT**: Be targeted — explore deeply within the relevant scope, not broadly across the entire codebase. Read actual file contents for the scoped concepts; do not guess. If the scope turns out to be very large (e.g., the requirement touches 10+ existing modules), explicitly list all identified concepts and prioritize the core ones, noting the peripheral ones as "boundary context" to be verified during REASONS Canvas.
 
@@ -98,18 +98,18 @@ Input can be provided in two ways:
    Identify the business concepts involved at a **conceptual level** — do NOT drill into specific attributes, data types, method signatures, or DTOs. The goal is to understand the domain landscape, not to design the implementation.
 
    a. **Concept inventory**:
-   - What core business concepts does this requirement involve?
-   - Which already exist in the codebase (as DB tables, existing classes, or type definitions)?
-   - Which are new and need to be introduced?
+    - What core business concepts does this requirement involve?
+    - Which already exist in the codebase (as DB tables, existing classes, or type definitions)?
+    - Which are new and need to be introduced?
 
    b. **Conceptual relationships**:
-   - How do these concepts relate to each other at a business level?
-   - What are the ownership and lifecycle boundaries?
+    - How do these concepts relate to each other at a business level?
+    - What are the ownership and lifecycle boundaries?
 
    c. **Key business rules**:
-   - What invariants must be maintained?
-   - What business rules are explicit in the requirement?
-   - What business rules are **implicit** and need to be surfaced?
+    - What invariants must be maintained?
+    - What business rules are explicit in the requirement?
+    - What business rules are **implicit** and need to be surfaced?
 
    Output this section as:
 
@@ -131,18 +131,18 @@ Input can be provided in two ways:
    Determine the **high-level solution direction** — do NOT specify implementation details like specific queries, annotations, JSON shapes, method signatures, or step-by-step logic. Those belong in the REASONS Canvas phase.
 
    a. **Solution direction**:
-   - What is the overall approach to solving this requirement?
-   - Which existing architectural patterns and conventions should be leveraged?
-   - What is the general data flow direction (e.g., "REST endpoint → service-layer calculation → persist result")?
+    - What is the overall approach to solving this requirement?
+    - Which existing architectural patterns and conventions should be leveraged?
+    - What is the general data flow direction (e.g., "REST endpoint → service-layer calculation → persist result")?
 
    b. **Key design decisions**:
-   - What strategic choices need to be made?
-   - What are the trade-offs for each choice?
-   - What is the recommended direction and why?
+    - What strategic choices need to be made?
+    - What are the trade-offs for each choice?
+    - What is the recommended direction and why?
 
    c. **Alternatives considered** (if applicable):
-   - What other approaches were considered?
-   - Why were they rejected?
+    - What other approaches were considered?
+    - Why were they rejected?
 
    Output this section as:
 
@@ -164,20 +164,20 @@ Input can be provided in two ways:
    Surface everything that could cause problems or needs clarification **before** detailed design begins in the REASONS Canvas phase.
 
    a. **Requirement ambiguities**:
-   - What is unclear, underspecified, or open to interpretation in the requirement?
-   - What implicit assumptions has the requirement made?
+    - What is unclear, underspecified, or open to interpretation in the requirement?
+    - What implicit assumptions has the requirement made?
 
    b. **Edge cases**:
-   - What scenarios are not explicitly addressed by the requirement or ACs?
-   - What boundary conditions need clarification?
+    - What scenarios are not explicitly addressed by the requirement or ACs?
+    - What boundary conditions need clarification?
 
    c. **Technical risks**:
-   - What technical challenges or constraints could impact the implementation?
-   - Are there concurrency, performance, or data integrity concerns?
+    - What technical challenges or constraints could impact the implementation?
+    - Are there concurrency, performance, or data integrity concerns?
 
    d. **Acceptance Criteria coverage**:
-   - Are all ACs addressable with the proposed approach?
-   - Are there gaps between the ACs and the full scope of the requirement?
+    - Are all ACs addressable with the proposed approach?
+    - Are there gaps between the ACs and the full scope of the requirement?
 
    Output this section as:
 
@@ -222,32 +222,32 @@ Input can be provided in two ways:
    **NOTE**: The codebase exploration from Step 2 is a **working process** — its findings are internalized and reflected through the Domain Concept Identification (which references existing vs. new concepts), Strategic Approach (which references existing patterns and conventions), and Risk & Gap Analysis (which surfaces technical constraints). Do NOT output a separate "Codebase Context Summary" section.
 
    **IMPORTANT**:
-   - The original business requirement MUST be included verbatim — do NOT paraphrase
-   - Every section must contain concrete, specific content — no placeholders
-   - All analysis must be grounded in actual codebase exploration, not assumptions
-   - Stay at a **conceptual/strategic** level — do NOT include implementation details (specific queries, JSON shapes, method signatures, annotations, component inventories). Those belong in the REASONS Canvas phase.
+    - The original business requirement MUST be included verbatim — do NOT paraphrase
+    - Every section must contain concrete, specific content — no placeholders
+    - All analysis must be grounded in actual codebase exploration, not assumptions
+    - Stay at a **conceptual/strategic** level — do NOT include implementation details (specific queries, JSON shapes, method signatures, annotations, component inventories). Those belong in the REASONS Canvas phase.
 
 7. **Save the enriched context document**
 
    a. **Derive file name**: `{JIRA}-{TIMESTAMP}-[Analysis]-{description}.md`
-   - **JIRA**: Extract from business context if mentioned, otherwise use `GGQPA-XXX`
-   - **TIMESTAMP**: `YYYYMMDDHHmm` (current time)
-   - **description**: Derive from business context — kebab-case, < 10 words
+    - **JIRA**: Extract from business context if mentioned, otherwise use `SPDD-XXX`
+    - **TIMESTAMP**: `YYYYMMDDHHmm` (current time)
+    - **description**: Derive from business context — kebab-case, < 10 words
 
    Examples:
-   - `GGQPA-XXX-202603131530-[Analysis]-token-usage-billing.md`
-   - `GGQPA-169-202603131530-[Analysis]-monthly-report-export.md`
+    - `SPDD-XXX-202603131530-[Analysis]-token-usage-billing.md`
+    - `SPDD-169-202603131530-[Analysis]-monthly-report-export.md`
 
    b. **Create directory and write file**:
-   - Ensure directory `spdd/analysis/` exists under the project root (create if not)
-   - Write the complete enriched context document to `spdd/analysis/<file-name>.md`
+    - Ensure directory `spdd/analysis/` exists under the project root (create if not)
+    - Write the complete enriched context document to `spdd/analysis/<file-name>.md`
 
    c. **Show summary to user**:
 
    ```
-   ✅ Analysis complete. Enriched context saved to `spdd/analysis/<file-name>.md`
+   Analysis complete. Enriched context saved to `spdd/analysis/<file-name>.md`
 
-   📋 Analysis summary:
+   Analysis summary:
    - Project type: [backend/frontend/fullstack]
    - Existing concepts identified: [count]
    - New concepts required: [count]
@@ -255,11 +255,39 @@ Input can be provided in two ways:
    - Acceptance Criteria coverage: [count]/[total]
    - Open questions/risks: [count]
 
-   🔗 Next step: Use this as input for REASONS Canvas generation:
+   Next step: Use this as input for REASONS Canvas generation:
       /spdd-reasons-canvas @spdd/analysis/<file-name>.md
    ```
 
-8. **Offer to proceed with REASONS Canvas generation**
+8. **Record analysis-time metadata via `/spdd-meta-analyzed`** (Docs-as-Code automation)
+
+   This step closes the loop with `/spdd-story` by delegating the metadata write to the canonical `/spdd-meta-analyzed` command — it owns `assignees.qa`, `flow.analyzed_at`, and the `BACKLOG → IN_PROGRESS` transition. Do NOT mutate frontmatter here directly.
+
+   a. **Locate the source story file(s)**:
+    - Use the first `@` reference in the input that resolves under `requirements/` (or any path whose YAML frontmatter `id` starts with `STORY-`).
+    - If multiple story files were referenced, plan one delegation call per file.
+    - If no story file can be found (raw-text input only), skip the delegation entirely and emit a warning in the run summary that downstream automation lacks a story anchor.
+
+   b. **Invoke `/spdd-meta-analyzed`** for each located story file:
+
+   ```
+   /spdd-meta-analyzed --file @requirements/<story-file>.md
+   ```
+
+   Pass `--no-status-prompt` ONLY when the analysis was triggered by a non-interactive batch (rare; default to interactive).
+
+   c. **Surface the diff** that `/spdd-meta-analyzed` returned in the run summary (Step 7c) verbatim — do NOT paraphrase it. Example:
+
+   ```
+   📌 Story metadata updated (requirements/[User-story-7]token-billing.md):
+      - assignees.qa: null → wendi.zhang
+      - flow.analyzed_at: null → 2026-05-06 17:05
+      - status: BACKLOG → IN_PROGRESS
+   ```
+
+   If `/spdd-meta-analyzed` aborts (e.g., file lacks frontmatter), propagate its error and instruct the user to run `/spdd-meta-init` or regenerate via `/spdd-story`. Do NOT fall back to writing frontmatter inline.
+
+9. **Offer to proceed with REASONS Canvas generation**
 
    > "The enriched context is ready. Would you like me to proceed with `/spdd-reasons-canvas` using this analysis as input?"
 
@@ -288,9 +316,12 @@ An enriched context document saved to `spdd/analysis/<file-name>.md` that transf
 - Always read ALL `@` referenced files completely
 - Always create `spdd/analysis/` directory if it does not exist
 - File name MUST follow the naming convention defined above
-- Use `GGQPA-XXX` if JIRA ticket number cannot be extracted from context
+- Use `SPDD-XXX` if JIRA ticket number cannot be extracted from context
 - Acceptance Criteria coverage MUST assess every AC from the requirement
 - Risk & Gap Analysis MUST surface any ambiguities — do NOT silently assume
+- When the input includes a `@` reference to a story under `requirements/`, this command MUST delegate metadata mutation to `/spdd-meta-analyzed` per Step 8 — do NOT mutate frontmatter inline
+- Do NOT inline the schema, frontmatter parsing, or git-config lookups here; `/spdd-meta-analyzed` owns those concerns
+- If `/spdd-meta-analyzed` aborts, propagate its error verbatim and stop — do NOT retry by writing frontmatter inline
 
 **Context Integrity Guardrails**:
 
@@ -319,7 +350,7 @@ This command is the **pre-processing phase** of the SPDD workflow, bridging raw 
 │  │   + Risk & Gap Analysis (ambiguities, edge cases, risks)        │    │
 │  │   = Enriched Context (Business + Strategic + Risks)             │    │
 │  │                                                                 │    │
-│  │ Output: spdd/analysis/GGQPA-XXX-*-[Analysis]-*.md              │    │
+│  │ Output: spdd/analysis/SPDD-XXX-*-[Analysis]-*.md              │    │
 │  └────────────────────────────────────────────────────────────────┘    │
 │                              │                                          │
 │                              ▼                                          │
@@ -327,7 +358,7 @@ This command is the **pre-processing phase** of the SPDD workflow, bridging raw 
 │  ┌────────────────────────────────────────────────────────────────┐    │
 │  │ Enriched Context → REASONS Canvas Structured Prompt             │    │
 │  │                                                                 │    │
-│  │ Output: spdd/prompt/GGQPA-XXX-*.md (REASONS Canvas)           │    │
+│  │ Output: spdd/prompt/SPDD-XXX-*.md (REASONS Canvas)           │    │
 │  └────────────────────────────────────────────────────────────────┘    │
 │                              │                                          │
 │                              ▼                                          │

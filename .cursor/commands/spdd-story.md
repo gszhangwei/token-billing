@@ -37,34 +37,45 @@ Input can be provided in two ways:
    **IMPORTANT**: Do NOT proceed without business input.
 
    b. **If input contains `@` file/folder references**:
-   - Read ALL referenced files completely using the Read tool
-   - For folder references, read all relevant files within the folder
-   - Consolidate all file contents into a unified business context
+    - Read ALL referenced files completely using the Read tool
+    - For folder references, read all relevant files within the folder
+    - Consolidate all file contents into a unified business context
 
    c. **Combine all context sources**:
-   - Merge text descriptions with file contents
-   - Preserve the complete information from all sources — do NOT summarize or truncate
+    - Merge text descriptions with file contents
+    - Preserve the complete information from all sources — do NOT summarize or truncate
 
    d. **Context Integrity Check**:
-   - Verify all `@` references were successfully read
-   - If any file cannot be read, report the error and ask user to provide alternative
-   - Confirm the consolidated context contains sufficient information to proceed
+    - Verify all `@` references were successfully read
+    - If any file cannot be read, report the error and ask user to provide alternative
+    - Confirm the consolidated context contains sufficient information to proceed
 
 2. **Scan existing stories for context**
 
    Do NOT explore the codebase — that is `/spdd-analysis`'s responsibility. Only gather enough context to avoid duplication and determine numbering.
 
    a. **List existing stories**:
-   - List files in `requirements/` directory (if exists)
-   - Read existing stories to understand numbering conventions and scope boundaries
+    - List files in `requirements/` directory (if exists)
+    - Read existing stories to understand numbering conventions and scope boundaries
 
    b. **Identify coverage gaps**:
-   - Note which features and operations are already covered by existing stories
-   - Ensure new stories do not duplicate or conflict with existing ones
+    - Note which features and operations are already covered by existing stories
+    - Ensure new stories do not duplicate or conflict with existing ones
 
    c. **Determine next available story number**:
-   - Extract the highest `[User-story-N]` number from existing filenames
-   - New stories start from `N+1`
+    - Extract the highest `[User-story-N]` number from existing filenames
+    - New stories start from `N+1`
+
+2a. **AI-derive a one-line `title`** for each story (used by `/spdd-meta-init` in Step 9)
+
+   For every story produced in this run, derive a single-line title from the consolidated business input. The title MUST be:
+    - A single line, ≤ 80 characters.
+    - In the same natural language as the user input.
+    - Free of trailing punctuation and Markdown.
+
+   The user will see (and may correct) the titles in the final summary.
+
+   **IMPORTANT**: Do NOT capture BA identity or `created_at` here — those are owned by `/spdd-meta-init` and will be derived automatically when it runs in Step 9.
 
 3. **Abstract task analysis and INVEST evaluation**
 
@@ -100,16 +111,16 @@ Input can be provided in two ways:
    c. **If splitting is needed**, determine the split strategy:
 
    **Split dimensions** (choose the most appropriate):
-   - **By operation type**: CREATE-READ / UPDATE-DELETE / LIST-SEARCH
-   - **By complexity**: Basic features / Advanced features / Admin features
-   - **By user role**: Regular user features / Admin features
-   - **By technical dependency**: Core features / Extension features
+    - **By operation type**: CREATE-READ / UPDATE-DELETE / LIST-SEARCH
+    - **By complexity**: Basic features / Advanced features / Admin features
+    - **By user role**: Regular user features / Admin features
+    - **By technical dependency**: Core features / Extension features
 
    **Split rules**:
-   - Each story contains at most 2-3 core functional points
-   - Functional points within a story must have logical relevance
-   - Single story workload: 1-5 days
-   - Each story must deliver independent business value
+    - Each story contains at most 2-3 core functional points
+    - Functional points within a story must have logical relevance
+    - Single story workload: 1-5 days
+    - Each story must deliver independent business value
 
 4. **Determine story module numbering**
 
@@ -208,55 +219,55 @@ Input can be provided in two ways:
    ```
 
    **AC writing guidelines**:
-   - Use **business language**, not implementation language (say "system rejects the request" not "return HTTP 400")
-   - Include **concrete numbers and examples** (say "100,000 monthly quota, 80,000 used" not "some quota, some usage")
-   - Exception: HTTP status codes ARE acceptable in ACs since they are part of the API contract visible to consumers
-   - Each AC must be **independently testable** by a QA engineer without reading source code
-   - Do NOT prescribe HOW to implement (no "use parameterized queries", "apply cache strategy", etc.)
-   - Do NOT specify internal technical details (no JSON response format, no DB schema, no specific error codes)
+    - Use **business language**, not implementation language (say "system rejects the request" not "return HTTP 400")
+    - Include **concrete numbers and examples** (say "100,000 monthly quota, 80,000 used" not "some quota, some usage")
+    - Exception: HTTP status codes ARE acceptable in ACs since they are part of the API contract visible to consumers
+    - Each AC must be **independently testable** by a QA engineer without reading source code
+    - Do NOT prescribe HOW to implement (no "use parameterized queries", "apply cache strategy", etc.)
+    - Do NOT specify internal technical details (no JSON response format, no DB schema, no specific error codes)
 
 6. **Quality check each generated story**
 
    After generating each story, verify against this checklist:
 
    **Structure and Completeness**:
-   - [ ] Contains all required sections (Background, Business Value, Dependencies and Assumptions, Scope In/Out, ACs)
-   - [ ] Each AC uses Given-When-Then format with concrete values and examples
-   - [ ] ACs are written in business language — no implementation details leaked in
-   - [ ] ACs cover happy path, validation/business rules, and error conditions
+    - [ ] Contains all required sections (Background, Business Value, Dependencies and Assumptions, Scope In/Out, ACs)
+    - [ ] Each AC uses Given-When-Then format with concrete values and examples
+    - [ ] ACs are written in business language — no implementation details leaked in
+    - [ ] ACs cover happy path, validation/business rules, and error conditions
 
    **Business Clarity**:
-   - [ ] Business value is clear and stated for a specific audience/role
-   - [ ] Scope In and Scope Out clearly delineate boundaries — no ambiguous overlap
-   - [ ] No duplication with other existing stories
-   - [ ] A QA engineer could write test cases from the ACs without reading source code
+    - [ ] Business value is clear and stated for a specific audience/role
+    - [ ] Scope In and Scope Out clearly delineate boundaries — no ambiguous overlap
+    - [ ] No duplication with other existing stories
+    - [ ] A QA engineer could write test cases from the ACs without reading source code
 
    **Sizing and Independence**:
-   - [ ] Story contains at most 2-3 core functional points
-   - [ ] Story can be developed and delivered independently
-   - [ ] Estimated workload is 1-5 days
+    - [ ] Story contains at most 2-3 core functional points
+    - [ ] Story can be developed and delivered independently
+    - [ ] Estimated workload is 1-5 days
 
 7. **Final INVEST re-validation**
 
    After all stories are generated, perform a final check:
 
    **For each story**:
-   - [ ] **Independent**: Does not depend on other stories' implementation details
-   - [ ] **Complete**: Contains a complete functional loop and acceptance criteria
-   - [ ] **Valuable**: Delivers independent business value when implemented alone
-   - [ ] **Estimable**: Development team can accurately estimate development time
-   - [ ] **Right-sized**: 1-5 day workload, at most 3 core functional points
-   - [ ] **Testable**: Has clear test scenarios and acceptance conditions
+    - [ ] **Independent**: Does not depend on other stories' implementation details
+    - [ ] **Complete**: Contains a complete functional loop and acceptance criteria
+    - [ ] **Valuable**: Delivers independent business value when implemented alone
+    - [ ] **Estimable**: Development team can accurately estimate development time
+    - [ ] **Right-sized**: 1-5 day workload, at most 3 core functional points
+    - [ ] **Testable**: Has clear test scenarios and acceptance conditions
 
    **Anti-patterns to avoid**:
-   - Do NOT split by technical layer (frontend/backend/database for the same feature)
-   - Do NOT over-fragment a single API into multiple stories
-   - Do NOT break business logic completeness
-   - Do NOT create complex inter-story dependencies
+    - Do NOT split by technical layer (frontend/backend/database for the same feature)
+    - Do NOT over-fragment a single API into multiple stories
+    - Do NOT break business logic completeness
+    - Do NOT create complex inter-story dependencies
 
-8. **Assemble and save the story document**
+8. **Assemble and save the story document body** (frontmatter is injected separately in Step 9)
 
-   a. **Construct the complete document**:
+   a. **Construct the complete document body**:
 
    ```markdown
    # Story Decomposition: [Feature Name]
@@ -278,45 +289,67 @@ Input can be provided in two ways:
    ```
 
    b. **Derive file name**: `[User-story-{N}]{kebab-case-title}.md`
-   - **N**: Next available story number based on existing files in `requirements/`
-   - **title**: Descriptive kebab-case title derived from the feature
+    - **N**: Next available story number based on existing files in `requirements/`
+    - **title**: Descriptive kebab-case title derived from the feature
 
    If the feature splits into multiple stories, generate ONE file per story:
-   - `[User-story-{N}]{story-1-title}.md`
-   - `[User-story-{N+1}]{story-2-title}.md`
-   - etc.
+    - `[User-story-{N}]{story-1-title}.md`
+    - `[User-story-{N+1}]{story-2-title}.md`
+    - etc.
 
-   Alternatively, if the stories are closely related and part of a single feature decomposition, generate a single consolidated file.
+   Alternatively, if the stories are closely related and part of a single feature decomposition, generate a single consolidated file. In that case the consolidated file still carries a single frontmatter block with a single `id` representing the umbrella story; per-section IDs live inside the body as `## [STORY-…]` headers.
 
    c. **Create directory and write file(s)**:
-   - Ensure directory `requirements/` exists under the project root (create if not)
-   - Write the complete story document(s) to `requirements/<file-name>.md`
+    - Ensure directory `requirements/` exists under the project root (create if not)
+    - Write the document **body only** (no YAML frontmatter yet) to `requirements/<file-name>.md`. Step 9 will prepend the canonical frontmatter.
 
-   d. **Show summary to user**:
+9. **Initialize lifecycle metadata via `/spdd-meta-init`** (Docs-as-Code automation)
+
+   For every file written in Step 8c, invoke the **`/spdd-meta-init`** command — it owns the canonical YAML frontmatter schema and is the single source of truth for the SPDD lifecycle metadata. Do NOT inline the schema here; do NOT compute `assignees.ba` or `created_at` yourself; let `/spdd-meta-init` derive them.
+
+   Invocation per generated file:
 
    ```
-   ✅ Story generation complete. Stories saved to `requirements/`
-
-   📋 Generation summary:
-   - Feature: [feature name]
-   - Stories generated: [count]
-   - Total ACs: [count]
-   - Estimated total effort: [X-Y days]
-
-   📝 Stories:
-   1. [STORY-XXX-001] [title] — [estimated effort]
-   2. [STORY-XXX-002] [title] — [estimated effort]
-   ...
-
-   🔗 Next step: Process each story through the SPDD workflow:
-      /spdd-analysis @requirements/<file-name>.md
+   /spdd-meta-init \
+     --file @requirements/<file-name>.md \
+     --id STORY-{MODULE}-{SEQ} \
+     --title "<title from Step 2a>" \
+     [--tags <comma-separated tags if user supplied any>]
    ```
 
-9. **Offer to proceed with SPDD analysis**
+   - `--id` MUST match the `STORY-{MODULE}-{SEQ}` chosen in Step 4 for that specific file.
+   - `--title` is the AI-derived single-line title from Step 2a (in the same natural language as the user input).
+   - `--tags` is optional; pass through only if the user explicitly supplied them in the original input. Do NOT invent tags.
 
-   > "Stories are ready. Would you like me to proceed with `/spdd-analysis` for any of the generated stories?"
+   If `/spdd-meta-init` fails (e.g., file already has frontmatter), surface its error verbatim and stop — do NOT retry by writing frontmatter manually. That would defeat the single-source-of-truth principle.
 
-   If the user selects a story, invoke the `/spdd-analysis` workflow with that story file as input.
+10. **Show summary to user** (relay any reports emitted by `/spdd-meta-init`, including the `unknown` BA fallback warning if it surfaced):
+
+    ```
+    ✅ Story generation complete. Stories saved to `requirements/`
+
+    📋 Generation summary:
+    - Feature: [feature name]
+    - Stories generated: [count]
+    - Total ACs: [count]
+    - Estimated total effort: [X-Y days]
+    - Status: BACKLOG (use /spdd-analysis to advance)
+    - Lifecycle metadata: initialized via /spdd-meta-init (see per-file reports above)
+
+    📝 Stories:
+    1. [STORY-XXX-001] [title] — [estimated effort]
+    2. [STORY-XXX-002] [title] — [estimated effort]
+    ...
+
+    🔗 Next step: Process each story through the SPDD workflow:
+       /spdd-analysis @requirements/<file-name>.md
+    ```
+
+11. **Offer to proceed with SPDD analysis**
+
+    > "Stories are ready. Would you like me to proceed with `/spdd-analysis` for any of the generated stories?"
+
+    If the user selects a story, invoke the `/spdd-analysis` workflow with that story file as input.
 
 **Output**
 
@@ -347,6 +380,10 @@ Structured, INVEST-compliant story document(s) saved to `requirements/`, contain
 - Always read ALL `@` referenced files completely
 - Always create `requirements/` directory if it does not exist
 - File name MUST follow the naming convention: `[User-story-{N}]{kebab-case-title}.md`
+- Lifecycle YAML frontmatter MUST be initialized by delegating to `/spdd-meta-init` in Step 9 — do NOT inline the schema, do NOT write `---` blocks manually
+- Do NOT capture `assignees.ba` or `created_at` yourself; `/spdd-meta-init` derives them from git config and the local clock
+- If `/spdd-meta-init` reports an error, propagate it verbatim and stop — do NOT fall back to writing frontmatter inline
+- This command never sets `status` to anything other than the default `BACKLOG` produced by `/spdd-meta-init`
 
 **Context Integrity Guardrails**:
 
@@ -385,7 +422,7 @@ This command is the **story decomposition phase** of the SPDD workflow, transfor
 │  ┌────────────────────────────────────────────────────────────────┐    │
 │  │ Story → Enriched Context (domain concepts + strategy + risks)  │    │
 │  │                                                                 │    │
-│  │ Output: spdd/analysis/GGQPA-XXX-*-[Analysis]-*.md              │    │
+│  │ Output: spdd/analysis/SPDD-XXX-*-[Analysis]-*.md              │    │
 │  └────────────────────────────────────────────────────────────────┘    │
 │                              │                                          │
 │                              ▼                                          │
@@ -393,7 +430,7 @@ This command is the **story decomposition phase** of the SPDD workflow, transfor
 │  ┌────────────────────────────────────────────────────────────────┐    │
 │  │ Enriched Context → REASONS Canvas Structured Prompt             │    │
 │  │                                                                 │    │
-│  │ Output: spdd/prompt/GGQPA-XXX-*.md (REASONS Canvas)           │    │
+│  │ Output: spdd/prompt/SPDD-XXX-*.md (REASONS Canvas)           │    │
 │  └────────────────────────────────────────────────────────────────┘    │
 │                              │                                          │
 │                              ▼                                          │

@@ -33,7 +33,7 @@ Input can be provided in several ways:
 /spdd-api-test @src/main/java/com/example/controller/BillingController.java
 
 # Reference to acceptance criteria
-/spdd-api-test @spdd/prompt/GGQPA-XXX-202603131530-[Feat]-token-usage-billing.md
+/spdd-api-test @spdd/prompt/SPDD-XXX-202603131530-[Feat]-token-usage-billing.md
 
 # Reference to multiple files
 /spdd-api-test @src/controllers/ @requirements/api-spec.md
@@ -87,9 +87,9 @@ Input can be provided in several ways:
 3. **Design structured test case tables**
 
    Before generating the script, organize test cases into logical tables by test pattern.
-   
+
    **Group tests by their input/output structure**:
-   
+
    a. **Validation Error Tests** (expect HTTP 400/404):
    ```
    | Test ID | Description              | Customer     | Model      | Prompt | Completion | HTTP | Expected Error           |
@@ -98,7 +98,7 @@ Input can be provided in several ways:
    | AC1.2   | Missing customerId       | (missing)    | fast-model | 1000   | 500        | 400  | Customer ID is required  |
    | AC1.6   | Non-existent customer    | NON-EXISTENT | fast-model | 1000   | 500        | 404  | Customer not found       |
    ```
-   
+
    b. **Standard Plan Tests** (quota-based billing):
    ```
    | Test ID | Description          | Customer | Model      | Prompt | Completion | HTTP | IncludedUsed | Overage | TotalCharge |
@@ -106,7 +106,7 @@ Input can be provided in several ways:
    | AC2.1   | Within quota         | CUST-001 | fast-model | 1000   | 500        | 201  | 1500         | 0       | 0.00        |
    | AC2.3   | Exceeds small quota  | CUST-002 | fast-model | 10000  | 5000       | 201  | 10000        | 5000    | 0.15        |
    ```
-   
+
    c. **Premium Plan Tests** (split-rate billing):
    ```
    | Test ID | Description         | Customer     | Model           | Prompt | Completion | HTTP | PromptCharge | CompletionCharge | TotalCharge |
@@ -114,7 +114,7 @@ Input can be provided in several ways:
    | AC3.1   | fast-model billing  | CUST-PREMIUM | fast-model      | 10000  | 5000       | 201  | 0.10         | 0.10             | 0.20        |
    | AC3.2   | reasoning-model     | CUST-PREMIUM | reasoning-model | 10000  | 20000      | 201  | 0.30         | 1.20             | 1.50        |
    ```
-   
+
    d. **Special/Structural Tests** (checks that don't fit tabular pattern):
    - Keep these as descriptive test cases in the script
 
