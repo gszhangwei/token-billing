@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@ai-hero/sandcastle": "^0.7.0",
+    "@standard-schema/spec": "^1.1.0",
+    "@types/node": "^25.9.1",
+    "dotenv": "^17.4.2"
+  }
+}
