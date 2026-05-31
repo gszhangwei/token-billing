@@ -2,6 +2,12 @@ spring:
   application:
     name: token-billing
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/realms/token-billing}
+
   datasource:
     url: jdbc:postgresql://localhost:54323/token_billing
     username: postgres
