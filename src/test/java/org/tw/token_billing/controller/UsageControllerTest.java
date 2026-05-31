@@ -28,7 +28,13 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(UsageController.class)
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+
+import org.tw.token_billing.config.SecurityConfig;
+
+@WebMvcTest({UsageController.class, SecurityConfig.class})
 class UsageControllerTest {
 
     @Autowired
@@ -39,6 +45,9 @@ class UsageControllerTest {
 
     @MockBean
     private UsageService usageService;
+
+    @MockBean
+    private JwtDecoder jwtDecoder;
 
     @Test
     void submitUsage_validRequest_returns201WithBillResponse() throws Exception {
@@ -52,7 +61,7 @@ class UsageControllerTest {
 
         UsageRequest request = new UsageRequest("CUST-001", 25000, 25000);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isCreated())
@@ -80,7 +89,7 @@ class UsageControllerTest {
 
         UsageRequest request = new UsageRequest("CUST-MISSING", 100, 100);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isNotFound())
@@ -98,7 +107,7 @@ class UsageControllerTest {
         // Invalid characters (special chars not allowed)
         UsageRequest request = new UsageRequest("CUST@INVALID!", 100, 100);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
@@ -113,7 +122,7 @@ class UsageControllerTest {
         String longCustomerId = "CUST-" + "A".repeat(50);
         UsageRequest request = new UsageRequest(longCustomerId, 100, 100);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
@@ -126,7 +135,7 @@ class UsageControllerTest {
     void submitUsage_negativePromptTokens_returns400WithRfc7807() throws Exception {
         UsageRequest request = new UsageRequest("CUST-001", -1, 1000);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
@@ -144,7 +153,7 @@ class UsageControllerTest {
         // Exceeds 2_000_000_000
         UsageRequest request = new UsageRequest("CUST-001", 2000000001, 100);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
@@ -157,7 +166,7 @@ class UsageControllerTest {
     void submitUsage_missingPromptTokens_returns400WithRfc7807() throws Exception {
         String body = "{\"customerId\":\"CUST-001\",\"completionTokens\":100}";
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isBadRequest())
@@ -172,7 +181,7 @@ class UsageControllerTest {
     void submitUsage_emptyRequestBody_returns400WithRfc7807() throws Exception {
         String body = "{}";
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isBadRequest())
@@ -186,7 +195,7 @@ class UsageControllerTest {
         String body = "{\"customerId\":\"CUST-001\",\"promptTokens\":100,"
                 + "\"completionTokens\":100,\"unknownField\":\"value\"}";
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isBadRequest())
@@ -211,7 +220,7 @@ class UsageControllerTest {
         // customerId fails the regex AND would map to a non-existent customer
         UsageRequest request = new UsageRequest("BAD@ID!", 100, 100);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
@@ -230,7 +239,7 @@ class UsageControllerTest {
 
         UsageRequest request = new UsageRequest("CUST-NOSUB", 100, 100);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isConflict())
@@ -250,7 +259,7 @@ class UsageControllerTest {
 
         UsageRequest request = new UsageRequest("CUST-MULTI", 100, 100);
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isInternalServerError())
@@ -260,5 +269,48 @@ class UsageControllerTest {
             .andExpect(jsonPath("$.status").value(500))
             .andExpect(jsonPath("$.detail").value(containsString("CUST-MULTI")))
             .andExpect(jsonPath("$.instance").value("/api/usage"));
+    }
+
+    // Security AC: Missing or invalid Authorization Bearer -> HTTP 401 Unauthorized (RFC 7807)
+    @Test
+    void submitUsage_missingToken_returns401WithRfc7807() throws Exception {
+        UsageRequest request = new UsageRequest("CUST-001", 100, 100);
+
+        mockMvc.perform(post("/api/usage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Unauthorized"))
+            .andExpect(jsonPath("$.status").value(401))
+            .andExpect(jsonPath("$.detail").value("Full authentication is required to access this resource"))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
+    }
+
+    // Security AC: Valid JWT lacking billing:write scope -> HTTP 403 Forbidden (RFC 7807)
+    @Test
+    void submitUsage_invalidScope_returns403WithRfc7807() throws Exception {
+        UsageRequest request = new UsageRequest("CUST-001", 100, 100);
+
+        // JWT token with no authorities (missing SCOPE_billing:write)
+        mockMvc.perform(post("/api/usage")
+                .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:read")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isForbidden())
+            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+            .andExpect(jsonPath("$.type").value("about:blank"))
+            .andExpect(jsonPath("$.title").value("Forbidden"))
+            .andExpect(jsonPath("$.status").value(403))
+            .andExpect(jsonPath("$.detail").value("Invalid scope or insufficient privileges"))
+            .andExpect(jsonPath("$.instance").value("/api/usage"));
+    }
+
+    // Security AC: /actuator/health remains public
+    @Test
+    void actuatorHealth_isPermittedPublicly() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/actuator/health"))
+            .andExpect(status().isInternalServerError()); // 500 via GlobalExceptionHandler instead of 401 indicates permitAll works
     }
 }

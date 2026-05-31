@@ -30,9 +30,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 class ConcurrencyIntegrationTest {
+
+    @MockBean
+    private JwtDecoder jwtDecoder;
 
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyIntegrationTest.class);
 
@@ -80,7 +88,7 @@ class ConcurrencyIntegrationTest {
         for (int i = 0; i < numThreads; i++) {
             CompletableFuture<MvcResult> future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    return mockMvc.perform(post("/api/usage")
+                    return mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body(customerId, promptTokens, completionTokens)))
                             .andExpect(status().isCreated())
@@ -151,7 +159,7 @@ class ConcurrencyIntegrationTest {
         long startTime = System.currentTimeMillis();
 
         try {
-            MvcResult result = mockMvc.perform(post("/api/usage")
+            MvcResult result = mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(body(customerId, 1000, 500)))
                     .andExpect(status().isServiceUnavailable())

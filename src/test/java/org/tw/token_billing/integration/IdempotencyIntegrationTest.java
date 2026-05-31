@@ -15,6 +15,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @org.springframework.transaction.annotation.Transactional
@@ -29,6 +34,9 @@ class IdempotencyIntegrationTest {
     @Autowired
     private BillRepository billRepository;
 
+    @MockBean
+    private JwtDecoder jwtDecoder;
+
     private static String body(int prompt, int completion) {
         return "{\"customerId\": \"CUST-001\", \"promptTokens\": " + prompt
                 + ", \"completionTokens\": " + completion + "}";
@@ -36,7 +44,7 @@ class IdempotencyIntegrationTest {
 
     @Test
     void firstRequestWithIdempotencyKeyCreatesBill() throws Exception {
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .header("Idempotency-Key", "first-key-12345678")
                 .contentType("application/json")
                 .content(body(1000, 500)))
@@ -47,7 +55,7 @@ class IdempotencyIntegrationTest {
     void replayReturnsOriginalBillWith200AndReplayHeaderAndNoNewRow() throws Exception {
         String key = "replay-key-abcdefgh";
 
-        MvcResult first = mockMvc.perform(post("/api/usage")
+        MvcResult first = mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .header("Idempotency-Key", key)
                 .contentType("application/json")
                 .content(body(1000, 500)))
@@ -58,7 +66,7 @@ class IdempotencyIntegrationTest {
         JsonNode firstBody = objectMapper.readTree(first.getResponse().getContentAsString());
         String firstId = firstBody.get("billId").asText();
 
-        MvcResult replay = mockMvc.perform(post("/api/usage")
+        MvcResult replay = mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .header("Idempotency-Key", key)
                 .contentType("application/json")
                 .content(body(1000, 500)))
@@ -75,13 +83,13 @@ class IdempotencyIntegrationTest {
     void sameKeyDifferentPayloadReturns422() throws Exception {
         String key = "mismatch-key-1234567";
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .header("Idempotency-Key", key)
                 .contentType("application/json")
                 .content(body(1000, 500)))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .header("Idempotency-Key", key)
                 .contentType("application/json")
                 .content(body(2000, 500)))
@@ -90,7 +98,7 @@ class IdempotencyIntegrationTest {
 
     @Test
     void invalidIdempotencyKeyFormatReturns400() throws Exception {
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .header("Idempotency-Key", "short")
                 .contentType("application/json")
                 .content(body(1000, 500)))
@@ -101,11 +109,11 @@ class IdempotencyIntegrationTest {
     void absentIdempotencyKeyCreatesNewBillEachTime() throws Exception {
         long before = billRepository.count();
 
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType("application/json")
                 .content(body(1000, 500)))
                 .andExpect(status().isCreated());
-        mockMvc.perform(post("/api/usage")
+        mockMvc.perform(post("/api/usage").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_billing:write")))
                 .contentType("application/json")
                 .content(body(1000, 500)))
                 .andExpect(status().isCreated());
