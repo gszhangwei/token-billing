@@ -41,11 +41,8 @@ describe('BillingDashboard — RFC 7807 error rendering (GlobalExceptionHandler)
     expect(screen.getByText('Customer not found')).toBeInTheDocument()
     expect(screen.getByText('No customer with id CUST-001')).toBeInTheDocument()
 
-    // Verify the red error card container has the RFC 7807 error badge icon
     expect(screen.getByText('⛔')).toBeInTheDocument()
-    // The outer error card div is two levels above the "Error 404" <p> label
-    const errorCard = screen.getByText('Error 404').parentElement?.parentElement
-    expect(errorCard).toHaveStyle({ border: '1px solid rgba(239, 68, 68, 0.3)' })
+    expect(screen.getByTestId('error-card')).toHaveStyle({ border: '1px solid rgba(239, 68, 68, 0.3)' })
   })
 
   it('renders result card on successful submission', async () => {

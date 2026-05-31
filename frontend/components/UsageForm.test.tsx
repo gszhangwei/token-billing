@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '../mocks/server'
 import { UsageForm } from './UsageForm'
-import type { BillingResult, BillingError } from './UsageForm'
 import { MOCK_BILL } from '../mocks/handlers'
 
 function renderForm(customerId = 'CUST-001') {

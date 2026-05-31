@@ -22,8 +22,7 @@ function backendOk(status: number, body: unknown, extraHeaders?: Record<string, 
   })
 }
 
-// MSW intercepts fetch and passes a Request object to the bypass handler (mockFetch).
-// These helpers extract the data the route actually forwarded.
+// The route calls fetch(new Request(...)), so the first mock argument is a Request object.
 async function capturedRequest(): Promise<Request> {
   return mockFetch.mock.calls[0][0] as Request
 }

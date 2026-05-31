@@ -174,6 +174,7 @@ function Stat({
 function ErrorCard({ error, status }: { error: BillingError; status: number }) {
   return (
     <div
+      data-testid="error-card"
       className="animate-fade-in"
       style={{
         background: 'var(--color-error-dim)',
