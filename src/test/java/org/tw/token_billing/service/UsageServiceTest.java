@@ -70,8 +70,6 @@ class UsageServiceTest {
     }
 
     private void mockUsage(CustomerSubscription subscription, long currentMonthUsage) {
-        when(customerRepository.existsById(any()))
-            .thenReturn(true);
         when(customerRepository.findByIdForUpdate(any()))
             .thenReturn(java.util.Optional.of(subscription.getCustomer()));
         when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
@@ -179,7 +177,7 @@ class UsageServiceTest {
 
     @Test
     void calculateBill_customerDoesNotExist_throwsCustomerNotFound() {
-        when(customerRepository.existsById("INVALID")).thenReturn(false);
+        when(customerRepository.findByIdForUpdate("INVALID")).thenReturn(java.util.Optional.empty());
 
         var ex = assertThrows(CustomerNotFoundException.class,
             () -> usageService.calculateBill(new UsageRequest("INVALID", 1000, 1000)));
@@ -191,7 +189,9 @@ class UsageServiceTest {
 
     @Test
     void calculateBill_noActiveSubscription_throwsException() {
-        when(customerRepository.existsById("CUST-004")).thenReturn(true);
+        Customer customer = new Customer("CUST-004", "Test Customer", Instant.now());
+        when(customerRepository.findByIdForUpdate("CUST-004"))
+            .thenReturn(java.util.Optional.of(customer));
         when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
             .thenReturn(List.of());
 
@@ -205,7 +205,9 @@ class UsageServiceTest {
 
     @Test
     void calculateBill_multipleActiveSubscriptions_throwsException() {
-        when(customerRepository.existsById("CUST-005")).thenReturn(true);
+        Customer customer = new Customer("CUST-005", "Test Customer", Instant.now());
+        when(customerRepository.findByIdForUpdate("CUST-005"))
+            .thenReturn(java.util.Optional.of(customer));
         var sub1 = createSubscription("CUST-005", DEFAULT_QUOTA, DEFAULT_RATE);
         var sub2 = createSubscription("CUST-005", 500000, new BigDecimal("0.0150"));
         when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))

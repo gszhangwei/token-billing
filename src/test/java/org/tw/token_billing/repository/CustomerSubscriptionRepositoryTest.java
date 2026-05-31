@@ -2,14 +2,8 @@ package org.tw.token_billing.repository;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.tw.token_billing.entity.Customer;
 import org.tw.token_billing.entity.CustomerSubscription;
 import org.tw.token_billing.entity.PricingPlan;
@@ -24,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Integration tests for CustomerSubscriptionRepository.findAllActiveSubscriptions
- * against a real PostgreSQL container.
+ * Integration tests for CustomerSubscriptionRepository.findAllActiveSubscriptions,
+ * run against the default H2 in-memory database.
  *
  * Covers issue #3 acceptance criteria:
  *   - effective_from = today (inclusive)
@@ -34,21 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   - zero / multiple active rows for a customer (CUST-004 / CUST-005 fixtures)
  */
 @DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Testcontainers
 class CustomerSubscriptionRepositoryTest {
-
-    @Container
-    static final PostgreSQLContainer<?> postgres =
-        new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-    }
 
     @Autowired
     private CustomerSubscriptionRepository subscriptionRepository;

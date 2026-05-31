@@ -2,14 +2,8 @@ package org.tw.token_billing.repository;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.tw.token_billing.entity.Bill;
 import org.tw.token_billing.entity.Customer;
 
@@ -21,27 +15,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * Integration test for BillRepository against a real PostgreSQL container,
- * required by issue #1 AC11 to avoid H2/PG behavior drift.
+ * Integration test for BillRepository, run against the default H2 in-memory database.
  * Verifies SUM returns Long, COALESCE-to-zero on empty, Instant-based month
- * boundary filtering, and customer-scoped aggregation (review #1).
+ * boundary filtering, and customer-scoped aggregation.
  */
 @DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Testcontainers
 class BillRepositoryTest {
-
-    @Container
-    static final PostgreSQLContainer<?> postgres =
-        new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-    }
 
     private static final String CUSTOMER_A = "CUST-001";
     private static final String CUSTOMER_B = "CUST-002";

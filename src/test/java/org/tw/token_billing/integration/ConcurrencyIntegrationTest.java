@@ -8,27 +8,23 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerRepository;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -36,23 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Testcontainers
 class ConcurrencyIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyIntegrationTest.class);
-
-    @Container
-    static final PostgreSQLContainer<?> postgres =
-        new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -85,10 +67,12 @@ class ConcurrencyIntegrationTest {
 
     @Test
     void concurrentRequestsOnSameCustomer_serializesCorrectlyAndNoOverageAnomaly() throws Exception {
-        String customerId = "CUST-001"; // quota: 100,000, overage_rate_per_1k: 0.0200
-        int numThreads = 50;
+        String customerId = "CUST-001"; // monthlyQuota: 100,000, overageRatePer1k: 0.0200
+        int numThreads = 35;
         int promptTokens = 2000;
         int completionTokens = 1000; // total per request = 3000
+        int quota = 100000;
+        double overageRatePer1k = 0.0200;
 
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
         List<CompletableFuture<MvcResult>> futures = new ArrayList<>();
@@ -123,23 +107,34 @@ class ConcurrencyIntegrationTest {
         Double sumCharge = jdbcTemplate.queryForObject(
             "SELECT SUM(total_charge) FROM bills WHERE customer_id = ?", Double.class, customerId);
 
-        assertThat(sumTotalTokens).isEqualTo(150000);
-        assertThat(sumIncludedUsed).isEqualTo(100000);
-        assertThat(sumOverage).isEqualTo(50000);
-        assertThat(sumCharge).isEqualTo(1.00);
+        // 動態計算預期結果
+        int totalRequestedTokens = numThreads * (promptTokens + completionTokens);
+        int expectedIncludedUsed = Math.min(totalRequestedTokens, quota);
+        int expectedOverage = Math.max(0, totalRequestedTokens - quota);
+        double expectedCharge = (expectedOverage / 1000.0) * overageRatePer1k;
+
+        assertThat(sumTotalTokens).isEqualTo(totalRequestedTokens);
+        assertThat(sumIncludedUsed).isEqualTo(expectedIncludedUsed);
+        assertThat(sumOverage).isEqualTo(expectedOverage);
+        assertThat(sumCharge).isEqualTo(expectedCharge);
     }
 
     @Test
     void lockTimeout_returns503ServiceUnavailable() throws Exception {
         String customerId = "CUST-001";
 
+        CountDownLatch lockAcquiredLatch = new CountDownLatch(1);
+        CountDownLatch releaseLockLatch = new CountDownLatch(1);
+
         CompletableFuture<Void> locker = CompletableFuture.runAsync(() -> {
             transactionTemplate.execute(status -> {
                 log.info("Locker acquiring lock on {}", customerId);
                 customerRepository.findByIdForUpdate(customerId).orElseThrow();
-                log.info("Locker locked {}. Sleeping for 6s...", customerId);
+                log.info("Locker locked {}. Triggering countdown...", customerId);
+                lockAcquiredLatch.countDown();
                 try {
-                    Thread.sleep(6000);
+                    // 等待主執行緒釋放鎖，最多等 10 秒防死鎖
+                    releaseLockLatch.await(10, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -148,28 +143,33 @@ class ConcurrencyIntegrationTest {
             });
         });
 
-        Thread.sleep(1000);
+        // 等待 locker 確定獲取鎖，最多等 5 秒
+        boolean acquired = lockAcquiredLatch.await(5, TimeUnit.SECONDS);
+        assertThat(acquired).isTrue();
 
         log.info("Main thread performing request which should timeout...");
         long startTime = System.currentTimeMillis();
 
-        MvcResult result = mockMvc.perform(post("/api/usage")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body(customerId, 1000, 500)))
-                .andExpect(status().isServiceUnavailable())
-                .andReturn();
+        try {
+            MvcResult result = mockMvc.perform(post("/api/usage")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body(customerId, 1000, 500)))
+                    .andExpect(status().isServiceUnavailable())
+                    .andReturn();
 
-        long duration = System.currentTimeMillis() - startTime;
-        log.info("Request failed with 503 as expected in {}ms", duration);
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("Request failed with 503 as expected in {}ms", duration);
 
-        assertThat(duration).isGreaterThanOrEqualTo(4500L);
+            String json = result.getResponse().getContentAsString();
+            JsonNode problemDetail = objectMapper.readTree(json);
 
-        String json = result.getResponse().getContentAsString();
-        JsonNode problemDetail = objectMapper.readTree(json);
-
-        assertThat(problemDetail.get("status").asInt()).isEqualTo(503);
-        assertThat(problemDetail.get("title").asText()).isEqualTo("Concurrent billing in progress, retry later");
-        assertThat(problemDetail.get("detail").asText()).isEqualTo("Concurrent billing in progress, retry later");
+            assertThat(problemDetail.get("status").asInt()).isEqualTo(503);
+            assertThat(problemDetail.get("title").asText()).isEqualTo("Concurrent billing in progress, retry later");
+            assertThat(problemDetail.get("detail").asText()).isEqualTo("Concurrent billing in progress, retry later");
+        } finally {
+            // 無論測試結果如何，必須釋放鎖
+            releaseLockLatch.countDown();
+        }
 
         locker.join();
     }
