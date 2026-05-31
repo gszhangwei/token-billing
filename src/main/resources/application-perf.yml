@@ -2,31 +2,23 @@ spring:
   datasource:
     url: jdbc:h2:mem:token_billing;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
     username: sa
-    password: 
+    password:
     driver-class-name: org.h2.Driver
 
   jpa:
-    hibernate:
-      ddl-auto: validate
     show-sql: false
 
   flyway:
-    enabled: true
     vendor: h2
     locations: classpath:db/migration/common,classpath:db/migration/h2
 
-  jackson:
-    deserialization:
-      fail-on-unknown-properties: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ""
 
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,prometheus
-  endpoint:
-    health:
-      show-details: always
   prometheus:
     metrics:
       export:

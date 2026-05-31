@@ -1,0 +1,190 @@
+openapi: 3.1.0
+info:
+  title: Token Usage Billing API
+  description: "Submits LLM token usage and returns an authoritative bill that consumes\
+    \ the customer's monthly quota first, then charges overage."
+  version: "1.0"
+servers:
+- url: http://localhost:8081
+  description: Generated server url
+security:
+- bearerAuth:
+  - billing:write
+tags:
+- name: Usage
+  description: Token usage billing operations
+paths:
+  /api/usage:
+    post:
+      tags:
+      - Usage
+      summary: Submit token usage and calculate bill
+      description: "Submits prompt and completion token counts for a customer. Consumes\
+        \ monthly quota first, then charges overage at the plan rate. Idempotent when\
+        \ Idempotency-Key header is provided."
+      operationId: submitUsage
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        description: Idempotency key (8–255 alphanumeric/dash/underscore chars). Replays
+          return the original bill with HTTP 200.
+        required: false
+        schema:
+          type: string
+          pattern: "^[A-Za-z0-9_\\-]{8,255}$"
+        example: req-abc-12345678
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsageRequest"
+        required: true
+      responses:
+        "201":
+          description: New bill created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillResponse"
+        "200":
+          description: Idempotency replay — existing bill returned
+          headers:
+            Idempotent-Replayed:
+              description: Present and true on replay
+              style: simple
+              schema:
+                type: string
+                example: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillResponse"
+        "400":
+          description: Invalid request (missing/invalid fields or Idempotency-Key
+            format)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          description: Missing or invalid Bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "403":
+          description: Token lacks billing:write scope
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "404":
+          description: Customer not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Customer has no active subscription
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "422":
+          description: Idempotency-Key reused with different payload
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "500":
+          description: Internal server error (e.g. data integrity)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "503":
+          description: Concurrent billing in progress — retry later
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+components:
+  schemas:
+    UsageRequest:
+      type: object
+      properties:
+        customerId:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_\\-]{1,50}$"
+        promptTokens:
+          type: integer
+          format: int32
+          maximum: 2000000000
+          minimum: 0
+        completionTokens:
+          type: integer
+          format: int32
+          maximum: 2000000000
+          minimum: 0
+      required:
+      - completionTokens
+      - customerId
+      - promptTokens
+    BillResponse:
+      type: object
+      properties:
+        billId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+        promptTokens:
+          type: integer
+          format: int32
+        completionTokens:
+          type: integer
+          format: int32
+        totalTokens:
+          type: integer
+          format: int32
+        tokensFromQuota:
+          type: integer
+          format: int32
+        overageTokens:
+          type: integer
+          format: int32
+        totalCharge:
+          type: number
+        currency:
+          type: string
+        calculatedAt:
+          type: string
+          format: date-time
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        properties:
+          type: object
+          additionalProperties: {}
+  securitySchemes:
+    bearerAuth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: "${JWT_ISSUER_URI}/protocol/openid-connect/token"
+          scopes:
+            billing:write: Submit token usage and create bills
