@@ -23,6 +23,3 @@ management:
     metrics:
       export:
         enabled: true
-
-perf:
-  skip-auth: true

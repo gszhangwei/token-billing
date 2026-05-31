@@ -18,8 +18,11 @@ import org.tw.token_billing.metrics.BillingMetrics;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.PessimisticLockException;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -70,7 +73,7 @@ public class UsageService {
         Optional<Customer> customerOpt;
         try {
             customerOpt = customerRepository.findByIdForUpdate(request.getCustomerId());
-        } catch (org.springframework.dao.PessimisticLockingFailureException | jakarta.persistence.PessimisticLockException e) {
+        } catch (PessimisticLockingFailureException | PessimisticLockException e) {
             log.warn("Lock acquisition timeout for customerId={}", request.getCustomerId());
             billingMetrics.incrementLockContention();
             billingMetrics.incrementRequests(request.getCustomerId(), "lock_timeout");

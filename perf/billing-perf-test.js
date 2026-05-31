@@ -14,7 +14,7 @@
  */
 
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 import { Trend, Counter, Rate } from 'k6/metrics';
 
 const p95Latency = new Trend('billing_p95_latency', true);
