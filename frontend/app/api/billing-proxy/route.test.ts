@@ -22,6 +22,12 @@ function backendOk(status: number, body: unknown, extraHeaders?: Record<string, 
   })
 }
 
+// MSW intercepts fetch and passes a Request object to the bypass handler (mockFetch).
+// These helpers extract the data the route actually forwarded.
+async function capturedRequest(): Promise<Request> {
+  return mockFetch.mock.calls[0][0] as Request
+}
+
 describe('POST /api/billing-proxy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -35,10 +41,10 @@ describe('POST /api/billing-proxy', () => {
     const res = await POST(makeRequest({ body: payload }))
 
     expect(res.status).toBe(201)
-    const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit & { headers: Headers }]
-    expect(url).toBe('http://test-backend:8080/api/usage')
-    expect(opts.method).toBe('POST')
-    expect(opts.body).toBe(payload)
+    const req = await capturedRequest()
+    expect(req.url).toBe('http://test-backend:8080/api/usage')
+    expect(req.method).toBe('POST')
+    expect(await req.text()).toBe(payload)
   })
 
   it('forwards Authorization and Idempotency-Key headers', async () => {
@@ -53,9 +59,9 @@ describe('POST /api/billing-proxy', () => {
       }),
     )
 
-    const [, opts] = mockFetch.mock.calls[0] as [string, { headers: Headers }]
-    expect(opts.headers.get('Authorization')).toBe('Bearer my-token')
-    expect(opts.headers.get('Idempotency-Key')).toBe('req-abc-123')
+    const req = await capturedRequest()
+    expect(req.headers.get('Authorization')).toBe('Bearer my-token')
+    expect(req.headers.get('Idempotency-Key')).toBe('req-abc-123')
   })
 
   it('omits headers when not present in request', async () => {
@@ -63,9 +69,9 @@ describe('POST /api/billing-proxy', () => {
 
     await POST(makeRequest())
 
-    const [, opts] = mockFetch.mock.calls[0] as [string, { headers: Headers }]
-    expect(opts.headers.get('Authorization')).toBeNull()
-    expect(opts.headers.get('Idempotency-Key')).toBeNull()
+    const req = await capturedRequest()
+    expect(req.headers.get('Authorization')).toBeNull()
+    expect(req.headers.get('Idempotency-Key')).toBeNull()
   })
 
   it('forwards Idempotent-Replayed header from backend on 200 replay', async () => {
@@ -111,7 +117,7 @@ describe('POST /api/billing-proxy', () => {
 
     await POST(makeRequest())
 
-    const [url] = mockFetch.mock.calls[0] as [string]
-    expect(url).toBe('http://localhost:8080/api/usage')
+    const req = await capturedRequest()
+    expect(req.url).toBe('http://localhost:8080/api/usage')
   })
 })
