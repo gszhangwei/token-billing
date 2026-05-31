@@ -1,5 +1,7 @@
 export const runtime = 'edge'
 
+import { CustomerSwitcher } from '@/components/CustomerSwitcher'
+
 export default function Home() {
   return (
     <div className="animate-fade-in">
@@ -23,6 +25,8 @@ export default function Home() {
         </p>
       </header>
 
+      <CustomerSwitcher />
+
       <div
         style={{
           display: 'grid',
@@ -31,22 +35,7 @@ export default function Home() {
         }}
       >
         <section className="card card-gradient">
-          <p
-            className="label"
-            style={{ color: 'var(--color-purple)', marginBottom: '0.5rem' }}
-          >
-            Customer
-          </p>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-            Select a customer to view quota and usage details.
-          </p>
-        </section>
-
-        <section className="card card-gradient">
-          <p
-            className="label"
-            style={{ color: 'var(--color-green)', marginBottom: '0.5rem' }}
-          >
+          <p className="label" style={{ color: 'var(--color-green)', marginBottom: '0.5rem' }}>
             Submit Usage
           </p>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
@@ -55,10 +44,7 @@ export default function Home() {
         </section>
 
         <section className="card card-gradient">
-          <p
-            className="label"
-            style={{ color: 'var(--color-orange)', marginBottom: '0.5rem' }}
-          >
+          <p className="label" style={{ color: 'var(--color-orange)', marginBottom: '0.5rem' }}>
             Billing Result
           </p>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
