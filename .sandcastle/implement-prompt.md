@@ -31,6 +31,7 @@ Pick the highest-priority open issue that is not blocked by another open issue.
 2. **Plan** — decide what to change and why. Keep the change as small as possible.
 3. **Execute** — use RGR (Red → Green → Repeat → Refactor): write a failing test first, then write the implementation to pass it.
 4. **Verify** — run `./gradlew test` before committing. Fix any failures before proceeding.
+4. **Verify** — run `npm run typecheck` and `npm run test` before committing. Fix any failures before proceeding.
 5. **Commit** — make a single git commit. The message MUST:
    - Start with `RALPH:` prefix
    - Include the task completed and any PRD reference
