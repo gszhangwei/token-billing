@@ -5,15 +5,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 
+@Component
 public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    public ProblemDetailAccessDeniedHandler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
@@ -25,7 +31,7 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
         );
         problemDetail.setType(URI.create("about:blank"));
         problemDetail.setTitle("Forbidden");
-        problemDetail.setInstance(URI.create("/api/usage"));
+        problemDetail.setInstance(URI.create(request.getRequestURI()));
 
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType("application/problem+json;charset=UTF-8");

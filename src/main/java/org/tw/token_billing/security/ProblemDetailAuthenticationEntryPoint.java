@@ -5,15 +5,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 
+@Component
 public class ProblemDetailAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    public ProblemDetailAuthenticationEntryPoint(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
@@ -25,7 +31,7 @@ public class ProblemDetailAuthenticationEntryPoint implements AuthenticationEntr
         );
         problemDetail.setType(URI.create("about:blank"));
         problemDetail.setTitle("Unauthorized");
-        problemDetail.setInstance(URI.create("/api/usage"));
+        problemDetail.setInstance(URI.create(request.getRequestURI()));
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/problem+json;charset=UTF-8");

@@ -33,8 +33,10 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import org.tw.token_billing.config.SecurityConfig;
+import org.tw.token_billing.security.ProblemDetailAccessDeniedHandler;
+import org.tw.token_billing.security.ProblemDetailAuthenticationEntryPoint;
 
-@WebMvcTest({UsageController.class, SecurityConfig.class})
+@WebMvcTest({UsageController.class, SecurityConfig.class, ProblemDetailAuthenticationEntryPoint.class, ProblemDetailAccessDeniedHandler.class})
 class UsageControllerTest {
 
     @Autowired

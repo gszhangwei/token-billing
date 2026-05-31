@@ -14,19 +14,28 @@ import org.tw.token_billing.security.ProblemDetailAuthenticationEntryPoint;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private final ProblemDetailAuthenticationEntryPoint authenticationEntryPoint;
+    private final ProblemDetailAccessDeniedHandler accessDeniedHandler;
+
+    public SecurityConfig(ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
+                          ProblemDetailAccessDeniedHandler accessDeniedHandler) {
+        this.authenticationEntryPoint = authenticationEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(HttpMethod.POST, "/api/usage").hasAuthority("SCOPE_billing:write")
-                .requestMatchers("/actuator/health", "/actuator/**").permitAll()
+                .requestMatchers("/actuator/health").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(Customizer.withDefaults())
-                .authenticationEntryPoint(new ProblemDetailAuthenticationEntryPoint())
-                .accessDeniedHandler(new ProblemDetailAccessDeniedHandler())
+                .authenticationEntryPoint(authenticationEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler)
             );
 
         return http.build();
