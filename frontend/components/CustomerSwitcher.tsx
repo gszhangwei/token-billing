@@ -30,6 +30,168 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US')
 }
 
+function CustomerInfoCard({ info }: { info: CustomerInfo }) {
+  const { badgeCls, label, message } = STATUS_CONFIG[info.status]
+  const usagePct = info.monthlyQuota
+    ? (info.usedTokens / info.monthlyQuota) * 100
+    : 0
+  const isWarning = usagePct >= 75
+
+  return (
+    <div className="card card-gradient animate-fade-in">
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: '1rem',
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              fontSize: '1.125rem',
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              marginBottom: '0.2rem',
+            }}
+          >
+            {info.name}
+          </h2>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
+            {info.id}
+          </p>
+        </div>
+        <span className={badgeCls}>{label}</span>
+      </div>
+
+      {/* Plan details */}
+      {info.planName && (
+        <div
+          style={{
+            display: 'flex',
+            gap: '1.5rem',
+            marginBottom: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <p className="label" style={{ marginBottom: '0.125rem' }}>
+              Plan
+            </p>
+            <p
+              style={{
+                color: 'var(--color-purple-light)',
+                fontWeight: 600,
+                fontSize: '0.9375rem',
+              }}
+            >
+              {info.planName}
+            </p>
+          </div>
+          {info.monthlyQuota !== null && (
+            <div>
+              <p className="label" style={{ marginBottom: '0.125rem' }}>
+                Monthly Quota
+              </p>
+              <p
+                style={{
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 600,
+                  fontSize: '0.9375rem',
+                }}
+              >
+                {fmt(info.monthlyQuota)}
+              </p>
+            </div>
+          )}
+          {info.overageRatePer1k !== null && (
+            <div>
+              <p className="label" style={{ marginBottom: '0.125rem' }}>
+                Overage Rate
+              </p>
+              <p
+                style={{
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 600,
+                  fontSize: '0.9375rem',
+                }}
+              >
+                ${info.overageRatePer1k.toFixed(4)}/1k tokens
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Progress bar */}
+      {info.monthlyQuota !== null && info.monthlyQuota > 0 && (
+        <div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '0.5rem',
+              fontSize: '0.8125rem',
+            }}
+          >
+            <span style={{ color: 'var(--color-text-secondary)' }}>This month&apos;s usage</span>
+            <span
+              style={{
+                fontWeight: 600,
+                color: isWarning
+                  ? 'var(--color-orange-light)'
+                  : 'var(--color-text-primary)',
+              }}
+            >
+              {fmt(info.usedTokens)}&nbsp;/&nbsp;{fmt(info.monthlyQuota)}
+              <span
+                style={{ marginLeft: '0.5rem', color: 'var(--color-text-muted)', fontWeight: 400 }}
+              >
+                ({usagePct.toFixed(1)}%)
+              </span>
+            </span>
+          </div>
+          <div className="progress-track">
+            <div
+              className={`progress-fill${isWarning ? ' warning' : ''}`}
+              style={{ width: `${Math.min(usagePct, 100)}%` }}
+            />
+          </div>
+          {isWarning && (
+            <p
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--color-orange-light)',
+                marginTop: '0.375rem',
+              }}
+            >
+              ⚠ Quota running low —{' '}
+              {fmt(info.monthlyQuota - info.usedTokens)} tokens remaining
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Status message for non-active states */}
+      {message && (
+        <p
+          style={{
+            fontSize: '0.8125rem',
+            color: 'var(--color-text-secondary)',
+            marginTop: '0.875rem',
+            paddingTop: '0.875rem',
+            borderTop: '1px solid var(--color-border-subtle)',
+          }}
+        >
+          {message}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function CustomerSwitcher({
   onCustomerChange,
 }: {
@@ -56,13 +218,6 @@ export function CustomerSwitcher({
       setLoading(false)
     }
   }
-
-  const usagePct =
-    info?.monthlyQuota && info.monthlyQuota > 0
-      ? (info.usedTokens / info.monthlyQuota) * 100
-      : 0
-
-  const isWarning = usagePct >= 75
 
   return (
     <div style={{ marginBottom: '2rem' }}>
@@ -98,161 +253,7 @@ export function CustomerSwitcher({
         </div>
       )}
 
-      {!loading && info && (
-        <div className="card card-gradient animate-fade-in">
-          {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: '1rem',
-            }}
-          >
-            <div>
-              <h2
-                style={{
-                  fontSize: '1.125rem',
-                  fontWeight: 700,
-                  color: 'var(--color-text-primary)',
-                  marginBottom: '0.2rem',
-                }}
-              >
-                {info.name}
-              </h2>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-                {info.id}
-              </p>
-            </div>
-            <span className={STATUS_CONFIG[info.status].badgeCls}>
-              {STATUS_CONFIG[info.status].label}
-            </span>
-          </div>
-
-          {/* Plan details */}
-          {info.planName && (
-            <div
-              style={{
-                display: 'flex',
-                gap: '1.5rem',
-                marginBottom: '1rem',
-                flexWrap: 'wrap',
-              }}
-            >
-              <div>
-                <p className="label" style={{ marginBottom: '0.125rem' }}>
-                  Plan
-                </p>
-                <p
-                  style={{
-                    color: 'var(--color-purple-light)',
-                    fontWeight: 600,
-                    fontSize: '0.9375rem',
-                  }}
-                >
-                  {info.planName}
-                </p>
-              </div>
-              {info.monthlyQuota !== null && (
-                <div>
-                  <p className="label" style={{ marginBottom: '0.125rem' }}>
-                    Monthly Quota
-                  </p>
-                  <p
-                    style={{
-                      color: 'var(--color-text-primary)',
-                      fontWeight: 600,
-                      fontSize: '0.9375rem',
-                    }}
-                  >
-                    {fmt(info.monthlyQuota)}
-                  </p>
-                </div>
-              )}
-              {info.overageRatePer1k !== null && (
-                <div>
-                  <p className="label" style={{ marginBottom: '0.125rem' }}>
-                    Overage Rate
-                  </p>
-                  <p
-                    style={{
-                      color: 'var(--color-text-primary)',
-                      fontWeight: 600,
-                      fontSize: '0.9375rem',
-                    }}
-                  >
-                    ${info.overageRatePer1k.toFixed(4)}/1k tokens
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Progress bar */}
-          {info.monthlyQuota !== null && info.monthlyQuota > 0 && (
-            <div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginBottom: '0.5rem',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <span style={{ color: 'var(--color-text-secondary)' }}>This month&apos;s usage</span>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    color: isWarning
-                      ? 'var(--color-orange-light)'
-                      : 'var(--color-text-primary)',
-                  }}
-                >
-                  {fmt(info.usedTokens)}&nbsp;/&nbsp;{fmt(info.monthlyQuota)}
-                  <span
-                    style={{ marginLeft: '0.5rem', color: 'var(--color-text-muted)', fontWeight: 400 }}
-                  >
-                    ({usagePct.toFixed(1)}%)
-                  </span>
-                </span>
-              </div>
-              <div className="progress-track">
-                <div
-                  className={`progress-fill${isWarning ? ' warning' : ''}`}
-                  style={{ width: `${Math.min(usagePct, 100)}%` }}
-                />
-              </div>
-              {isWarning && (
-                <p
-                  style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--color-orange-light)',
-                    marginTop: '0.375rem',
-                  }}
-                >
-                  ⚠ Quota running low —{' '}
-                  {fmt(info.monthlyQuota - info.usedTokens)} tokens remaining
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Status message for non-active states */}
-          {STATUS_CONFIG[info.status].message && (
-            <p
-              style={{
-                fontSize: '0.8125rem',
-                color: 'var(--color-text-secondary)',
-                marginTop: '0.875rem',
-                paddingTop: '0.875rem',
-                borderTop: '1px solid var(--color-border-subtle)',
-              }}
-            >
-              {STATUS_CONFIG[info.status].message}
-            </p>
-          )}
-        </div>
-      )}
+      {!loading && info && <CustomerInfoCard info={info} />}
     </div>
   )
 }

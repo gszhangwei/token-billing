@@ -29,7 +29,6 @@ interface UsageFormProps {
   onError: (error: BillingError, status: number) => void
 }
 
-
 export function UsageForm({ customerId, onResult, onError }: UsageFormProps) {
   const [promptTokens, setPromptTokens] = useState('')
   const [completionTokens, setCompletionTokens] = useState('')

@@ -1,4 +1,4 @@
-export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_\-]{8,255}$/
+export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{8,255}$/
 
 export function validateIdempotencyKey(value: string): string {
   if (!value) return ''
