@@ -67,117 +67,118 @@ public class UsageService {
     public BillResult calculateBill(UsageRequest request, String idempotencyKey) {
         long startMs = System.currentTimeMillis();
         MDC.put("customerId", request.getCustomerId());
-
-        // SRS-F-11 / AC2: Acquire pessimistic lock at the very beginning of the transaction to prevent any race condition
-        // on subscription lookup, idempotency lookup, and usage calculations.
-        Optional<Customer> customerOpt;
         try {
-            customerOpt = customerRepository.findByIdForUpdate(request.getCustomerId());
-        } catch (PessimisticLockingFailureException | PessimisticLockException e) {
-            log.warn("Lock acquisition timeout for customerId={}", request.getCustomerId());
-            billingMetrics.incrementLockContention();
-            billingMetrics.incrementRequests(request.getCustomerId(), "lock_timeout");
-            throw new ConcurrentBillingException(request.getCustomerId(), e);
-        }
+            // SRS-F-11 / AC2: Acquire pessimistic lock at the very beginning of the transaction to prevent any race condition
+            // on subscription lookup, idempotency lookup, and usage calculations.
+            Optional<Customer> customerOpt;
+            try {
+                customerOpt = customerRepository.findByIdForUpdate(request.getCustomerId());
+            } catch (PessimisticLockingFailureException | PessimisticLockException e) {
+                log.warn("Lock acquisition timeout for customerId={}", request.getCustomerId());
+                billingMetrics.incrementLockContention();
+                billingMetrics.incrementRequests(request.getCustomerId(), "lock_timeout");
+                throw new ConcurrentBillingException(request.getCustomerId(), e);
+            }
 
-        if (customerOpt.isEmpty()) {
-            billingMetrics.incrementRequests(request.getCustomerId(), "customer_not_found");
-            throw new CustomerNotFoundException(request.getCustomerId());
-        }
-        Customer customer = customerOpt.get();
+            if (customerOpt.isEmpty()) {
+                billingMetrics.incrementRequests(request.getCustomerId(), "customer_not_found");
+                throw new CustomerNotFoundException(request.getCustomerId());
+            }
+            Customer customer = customerOpt.get();
 
-        // SRS-F-7: active subscription resolution
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        List<CustomerSubscription> subscriptions = subscriptionRepository
-            .findAllActiveSubscriptions(request.getCustomerId(), today);
+            // SRS-F-7: active subscription resolution
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            List<CustomerSubscription> subscriptions = subscriptionRepository
+                .findAllActiveSubscriptions(request.getCustomerId(), today);
 
-        if (subscriptions.isEmpty()) {
-            billingMetrics.incrementRequests(request.getCustomerId(), "no_subscription");
-            throw new NoActiveSubscriptionException(request.getCustomerId());
-        }
-        if (subscriptions.size() > 1) {
-            log.error("Multiple active subscriptions for customerId={}", request.getCustomerId());
-            billingMetrics.incrementRequests(request.getCustomerId(), "multiple_subscriptions");
-            throw new MultipleActiveSubscriptionsException(request.getCustomerId());
-        }
+            if (subscriptions.isEmpty()) {
+                billingMetrics.incrementRequests(request.getCustomerId(), "no_subscription");
+                throw new NoActiveSubscriptionException(request.getCustomerId());
+            }
+            if (subscriptions.size() > 1) {
+                log.error("Multiple active subscriptions for customerId={}", request.getCustomerId());
+                billingMetrics.incrementRequests(request.getCustomerId(), "multiple_subscriptions");
+                throw new MultipleActiveSubscriptionsException(request.getCustomerId());
+            }
 
-        CustomerSubscription subscription = subscriptions.get(0);
+            CustomerSubscription subscription = subscriptions.get(0);
 
-        // SRS-F-6 step 6 — idempotency lookup
-        if (idempotencyKey != null) {
-            List<Bill> hits = billRepository.findActiveIdempotentBills(
-                request.getCustomerId(), idempotencyKey);
-            if (!hits.isEmpty()) {
-                Bill existing = hits.get(0);
-                if (payloadMatches(existing, request)) {
-                    log.info("Idempotency replay hit customerId={} keyPrefix={}",
-                        request.getCustomerId(), prefix8(idempotencyKey));
-                    billingMetrics.incrementIdempotencyReplay();
-                    billingMetrics.incrementRequests(request.getCustomerId(), "replayed");
-                    BillResult result = new BillResult(toResponse(existing), true);
-                    logBillingRequest(result.body(), request, startMs);
-                    return result;
-                } else {
-                    billingMetrics.incrementRequests(request.getCustomerId(), "idempotency_mismatch");
-                    throw new IdempotencyKeyMismatchException(request.getCustomerId(), idempotencyKey);
+            // SRS-F-6 step 6 — idempotency lookup
+            if (idempotencyKey != null) {
+                List<Bill> hits = billRepository.findActiveIdempotentBills(
+                    request.getCustomerId(), idempotencyKey);
+                if (!hits.isEmpty()) {
+                    Bill existing = hits.get(0);
+                    if (payloadMatches(existing, request)) {
+                        log.info("Idempotency replay hit customerId={} keyPrefix={}",
+                            request.getCustomerId(), prefix8(idempotencyKey));
+                        billingMetrics.incrementIdempotencyReplay();
+                        billingMetrics.incrementRequests(request.getCustomerId(), "replayed");
+                        BillResult result = new BillResult(toResponse(existing), true);
+                        logBillingRequest(result.body(), request, startMs);
+                        return result;
+                    } else {
+                        billingMetrics.incrementRequests(request.getCustomerId(), "idempotency_mismatch");
+                        throw new IdempotencyKeyMismatchException(request.getCustomerId(), idempotencyKey);
+                    }
                 }
             }
-        }
 
-        int quota = subscription.getPricingPlan().getMonthlyQuota();
-        BigDecimal overageRatePer1k = subscription.getPricingPlan().getOverageRatePer1k();
+            int quota = subscription.getPricingPlan().getMonthlyQuota();
+            BigDecimal overageRatePer1k = subscription.getPricingPlan().getOverageRatePer1k();
 
-        int totalTokens = request.getPromptTokens() + request.getCompletionTokens();
+            int totalTokens = request.getPromptTokens() + request.getCompletionTokens();
 
-        Instant monthStart = today.with(TemporalAdjusters.firstDayOfMonth())
-            .atStartOfDay(ZoneOffset.UTC)
-            .toInstant();
-        long currentMonthUsage = billRepository.sumTotalTokensByCustomerIdAndMonthStart(
-            request.getCustomerId(), monthStart);
+            Instant monthStart = today.with(TemporalAdjusters.firstDayOfMonth())
+                .atStartOfDay(ZoneOffset.UTC)
+                .toInstant();
+            long currentMonthUsage = billRepository.sumTotalTokensByCustomerIdAndMonthStart(
+                request.getCustomerId(), monthStart);
 
-        long availableQuota = Math.max(0L, (long) quota - currentMonthUsage);
-        int tokensFromQuota = (int) Math.min((long) totalTokens, availableQuota);
-        int overageTokens = totalTokens - tokensFromQuota;
+            long availableQuota = Math.max(0L, (long) quota - currentMonthUsage);
+            int tokensFromQuota = (int) Math.min((long) totalTokens, availableQuota);
+            int overageTokens = totalTokens - tokensFromQuota;
 
-        BigDecimal charge = BigDecimal.valueOf(overageTokens)
-            .divide(BigDecimal.valueOf(1000), MATH_CONTEXT)
-            .multiply(overageRatePer1k)
-            .setScale(2, RoundingMode.HALF_EVEN);
+            BigDecimal charge = BigDecimal.valueOf(overageTokens)
+                .divide(BigDecimal.valueOf(1000), MATH_CONTEXT)
+                .multiply(overageRatePer1k)
+                .setScale(2, RoundingMode.HALF_EVEN);
 
-        Instant calculatedAt = Instant.now();
-        Bill bill = new Bill(
-            UUID.randomUUID(),
-            customer,
-            request.getPromptTokens(),
-            request.getCompletionTokens(),
-            totalTokens,
-            tokensFromQuota,
-            overageTokens,
-            charge,
-            calculatedAt,
-            idempotencyKey
-        );
-        billRepository.save(bill);
-
-        if (overageTokens > 0) {
-            billingMetrics.recordOverageCharge(
-                customer.getId(),
-                subscription.getPricingPlan().getId(),
-                charge.doubleValue()
+            Instant calculatedAt = Instant.now();
+            Bill bill = new Bill(
+                UUID.randomUUID(),
+                customer,
+                request.getPromptTokens(),
+                request.getCompletionTokens(),
+                totalTokens,
+                tokensFromQuota,
+                overageTokens,
+                charge,
+                calculatedAt,
+                idempotencyKey
             );
-        }
-        billingMetrics.incrementRequests(customer.getId(), "success");
+            billRepository.save(bill);
 
-        BillResult result = new BillResult(toResponse(bill), false);
-        logBillingRequest(result.body(), request, startMs);
-        return result;
+            if (overageTokens > 0) {
+                billingMetrics.recordOverageCharge(
+                    customer.getId(),
+                    subscription.getPricingPlan().getId(),
+                    charge.doubleValue()
+                );
+            }
+            billingMetrics.incrementRequests(customer.getId(), "success");
+
+            BillResult result = new BillResult(toResponse(bill), false);
+            logBillingRequest(result.body(), request, startMs);
+            return result;
+        } finally {
+            MDC.remove("customerId");
+        }
     }
 
     private void logBillingRequest(BillResponse bill, UsageRequest request, long startMs) {
         long durationMs = System.currentTimeMillis() - startMs;
         log.atInfo()
-            .addKeyValue("requestId", MDC.get("requestId"))
-            .addKeyValue("customerId", bill.getCustomerId())
             .addKeyValue("promptTokens", request.getPromptTokens())
             .addKeyValue("completionTokens", request.getCompletionTokens())
             .addKeyValue("billId", bill.getBillId())

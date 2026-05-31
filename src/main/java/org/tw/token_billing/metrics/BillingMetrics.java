@@ -32,7 +32,6 @@ public class BillingMetrics {
 
     public void incrementRequests(String customerId, String status) {
         registry.counter("billing.requests.total",
-            "customer_id", customerId,
             "status", status
         ).increment();
     }
@@ -41,7 +40,6 @@ public class BillingMetrics {
         DistributionSummary.builder("billing.overage.charge")
             .description("Overage charge amounts in USD")
             .baseUnit("USD")
-            .tag("customer_id", customerId)
             .tag("plan_id", planId)
             .register(registry)
             .record(chargeUsd);
