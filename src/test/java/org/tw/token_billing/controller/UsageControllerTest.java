@@ -8,6 +8,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.tw.token_billing.dto.BillResponse;
+import org.tw.token_billing.dto.BillResult;
 import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.exception.CustomerNotFoundException;
 import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
@@ -47,7 +48,7 @@ class UsageControllerTest {
         BillResponse response = new BillResponse(
             billId, "CUST-001", 25000, 25000, 50000, 20000, 30000,
             new BigDecimal("0.60"), "USD", calculatedAt);
-        when(usageService.calculateBill(any(UsageRequest.class))).thenReturn(response);
+        when(usageService.calculateBill(any(UsageRequest.class), any())).thenReturn(new BillResult(response, false));
 
         UsageRequest request = new UsageRequest("CUST-001", 25000, 25000);
 
@@ -74,7 +75,7 @@ class UsageControllerTest {
     // AC1: 404 - Customer not found
     @Test
     void submitUsage_customerNotFound_returns404WithRfc7807() throws Exception {
-        when(usageService.calculateBill(any(UsageRequest.class)))
+        when(usageService.calculateBill(any(UsageRequest.class), any()))
             .thenThrow(new CustomerNotFoundException("CUST-MISSING"));
 
         UsageRequest request = new UsageRequest("CUST-MISSING", 100, 100);
@@ -204,7 +205,7 @@ class UsageControllerTest {
     @Test
     void submitUsage_invalidBody_shortCircuitsBeforeCustomerLookup() throws Exception {
         // Stub: if the service were ever called, it would return 404. We must see 400 instead.
-        when(usageService.calculateBill(any(UsageRequest.class)))
+        when(usageService.calculateBill(any(UsageRequest.class), any()))
             .thenThrow(new CustomerNotFoundException("CUST-MISSING"));
 
         // customerId fails the regex AND would map to a non-existent customer
@@ -224,7 +225,7 @@ class UsageControllerTest {
     // AC6: 409 - Customer exists but has no active subscription (RFC 7807)
     @Test
     void submitUsage_noActiveSubscription_returns409WithRfc7807() throws Exception {
-        when(usageService.calculateBill(any(UsageRequest.class)))
+        when(usageService.calculateBill(any(UsageRequest.class), any()))
             .thenThrow(new NoActiveSubscriptionException("CUST-NOSUB"));
 
         UsageRequest request = new UsageRequest("CUST-NOSUB", 100, 100);
@@ -244,7 +245,7 @@ class UsageControllerTest {
     // SRS-F-7: 500 - Multiple active subscriptions (data integrity error, RFC 7807)
     @Test
     void submitUsage_multipleActiveSubscriptions_returns500WithRfc7807() throws Exception {
-        when(usageService.calculateBill(any(UsageRequest.class)))
+        when(usageService.calculateBill(any(UsageRequest.class), any()))
             .thenThrow(new MultipleActiveSubscriptionsException("CUST-MULTI"));
 
         UsageRequest request = new UsageRequest("CUST-MULTI", 100, 100);
