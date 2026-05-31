@@ -69,3 +69,6 @@ docker compose up -d
 | overage_tokens | INTEGER | Tokens exceeding quota |
 | total_charge | DECIMAL | Calculated charge |
 | calculated_at | TIMESTAMP | Calculation time |
+
+## SPDD framework
+See [SPDD framework](spdd/README.md) for the implementation details.
