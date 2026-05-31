@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:token_billing;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    show-sql: false
+
+  flyway:
+    vendor: h2
+    locations: classpath:db/migration/common,classpath:db/migration/h2
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ""
+
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+perf:
+  skip-auth: true
