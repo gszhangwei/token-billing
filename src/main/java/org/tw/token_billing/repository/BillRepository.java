@@ -21,10 +21,8 @@ public interface BillRepository extends JpaRepository<Bill, UUID> {
     @Query("SELECT b FROM Bill b " +
            "WHERE b.customer.id = :customerId " +
            "AND b.idempotencyKey = :key " +
-           "AND b.createdAt >= :cutoff " +
            "ORDER BY b.createdAt DESC")
     List<Bill> findActiveIdempotentBills(
         @Param("customerId") String customerId,
-        @Param("key") String idempotencyKey,
-        @Param("cutoff") Instant cutoff);
+        @Param("key") String idempotencyKey);
 }

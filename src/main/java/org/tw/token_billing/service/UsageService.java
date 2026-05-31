@@ -79,9 +79,8 @@ public class UsageService {
 
         // SRS-F-6 step 6 — idempotency lookup
         if (idempotencyKey != null) {
-            Instant cutoff = Instant.now().minus(Duration.ofHours(24));
             List<Bill> hits = billRepository.findActiveIdempotentBills(
-                request.getCustomerId(), idempotencyKey, cutoff);
+                request.getCustomerId(), idempotencyKey);
             if (!hits.isEmpty()) {
                 Bill existing = hits.get(0);
                 if (payloadMatches(existing, request)) {

@@ -63,15 +63,8 @@ public class Bill {
     public Bill(UUID id, Customer customer, Integer promptTokens, Integer completionTokens,
               Integer totalTokens, Integer includedTokensUsed, Integer overageTokens,
               BigDecimal totalCharge, Instant calculatedAt, String idempotencyKey) {
-        this.id = id;
-        this.customer = customer;
-        this.promptTokens = promptTokens;
-        this.completionTokens = completionTokens;
-        this.totalTokens = totalTokens;
-        this.includedTokensUsed = includedTokensUsed;
-        this.overageTokens = overageTokens;
-        this.totalCharge = totalCharge;
-        this.calculatedAt = calculatedAt;
+        this(id, customer, promptTokens, completionTokens, totalTokens, includedTokensUsed,
+             overageTokens, totalCharge, calculatedAt);
         this.idempotencyKey = idempotencyKey;
     }
 
