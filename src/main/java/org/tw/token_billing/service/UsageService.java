@@ -8,6 +8,7 @@ import org.tw.token_billing.dto.UsageRequest;
 import org.tw.token_billing.entity.Bill;
 import org.tw.token_billing.entity.Customer;
 import org.tw.token_billing.entity.CustomerSubscription;
+import org.tw.token_billing.exception.ConcurrentBillingException;
 import org.tw.token_billing.exception.CustomerNotFoundException;
 import org.tw.token_billing.exception.IdempotencyKeyMismatchException;
 import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
@@ -56,9 +57,15 @@ public class UsageService {
 
     @Transactional
     public BillResult calculateBill(UsageRequest request, String idempotencyKey) {
-        // SRS-F-6 step 4: customer existence (404 before subscription lookup)
-        if (!customerRepository.existsById(request.getCustomerId())) {
-            throw new CustomerNotFoundException(request.getCustomerId());
+        // SRS-F-11 / AC2: Acquire pessimistic lock at the very beginning of the transaction to prevent any race condition
+        // on subscription lookup, idempotency lookup, and usage calculations.
+        Customer customer;
+        try {
+            customer = customerRepository.findByIdForUpdate(request.getCustomerId())
+                .orElseThrow(() -> new CustomerNotFoundException(request.getCustomerId()));
+        } catch (org.springframework.dao.PessimisticLockingFailureException | jakarta.persistence.PessimisticLockException e) {
+            log.warn("Lock acquisition timeout for customerId={}", request.getCustomerId());
+            throw new ConcurrentBillingException(request.getCustomerId(), e);
         }
 
         // SRS-F-7: active subscription resolution
@@ -75,7 +82,6 @@ public class UsageService {
         }
 
         CustomerSubscription subscription = subscriptions.get(0);
-        Customer customer = subscription.getCustomer();
 
         // SRS-F-6 step 6 — idempotency lookup
         if (idempotencyKey != null) {

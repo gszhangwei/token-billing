@@ -245,6 +245,18 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(ConcurrentBillingException.class)
+    public ProblemDetail handleConcurrentBilling(ConcurrentBillingException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Concurrent billing in progress, retry later"
+        );
+        problemDetail.setType(DEFAULT_TYPE);
+        problemDetail.setTitle("Concurrent billing in progress, retry later");
+        problemDetail.setInstance(URI.create("/api/usage"));
+        return problemDetail;
+    }
+
     private ProblemDetail createProblemDetail(HttpStatus status, String title, String detail) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
             HttpStatusCode.valueOf(status.value()),

@@ -1,6 +1,6 @@
 package org.tw.token_billing.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.Repository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.tw.token_billing.entity.Bill;
@@ -8,7 +8,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-public interface BillRepository extends JpaRepository<Bill, UUID> {
+public interface BillRepository extends Repository<Bill, UUID> {
+
+    Bill save(Bill bill);
+
+    long count();
 
     @Query("SELECT COALESCE(SUM(b.totalTokens), 0) FROM Bill b " +
            "WHERE b.customer.id = :customerId " +
