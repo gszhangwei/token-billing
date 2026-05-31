@@ -81,7 +81,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const implement = await sandbox.run({
       name: "implementer",
       maxIterations: 1,
-      agent: sandcastle.claudeCode(process.env.ANTHROPIC_MODEL || "claude-opus-4-8"),
+      agent: sandcastle.claudeCode(process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6"),
       promptFile: "./.sandcastle/implement-prompt.md",
     });
 
@@ -105,10 +105,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     await sandbox.run({
       name: "reviewer",
       maxIterations: 1,
-      agent: sandcastle.claudeCode(process.env.ANTHROPIC_MODEL || "claude-opus-4-8"),
+      agent: sandcastle.claudeCode(process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6"),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: {
         BRANCH: branch,
+        TARGET_BRANCH: "main",
       },
     });
 

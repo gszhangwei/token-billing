@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
   git \
   curl \
   jq \
+  openjdk-21-jdk \
   && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
