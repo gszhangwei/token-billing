@@ -25,7 +25,7 @@ function backendOk(status: number, body: unknown, extraHeaders?: Record<string, 
 describe('POST /api/billing-proxy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.NEXT_PUBLIC_API_URL = 'http://test-backend:8080'
+    process.env.BILLING_BACKEND_URL = 'http://test-backend:8080'
   })
 
   it('forwards body to backend /api/usage and returns 201', async () => {
@@ -106,7 +106,7 @@ describe('POST /api/billing-proxy', () => {
   })
 
   it('falls back to localhost:8080 when env var is unset', async () => {
-    delete process.env.NEXT_PUBLIC_API_URL
+    delete process.env.BILLING_BACKEND_URL
     mockFetch.mockResolvedValueOnce(backendOk(201, {}))
 
     await POST(makeRequest())

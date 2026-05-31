@@ -104,6 +104,11 @@ export function UsageForm({ customerId, onResult, onError }: UsageFormProps) {
       } else {
         onError(body as BillingError, res.status)
       }
+    } catch (err) {
+      onError({
+        title: 'Submission Failed',
+        detail: err instanceof Error ? err.message : 'An unexpected error occurred',
+      }, 500)
     } finally {
       setSubmitting(false)
     }

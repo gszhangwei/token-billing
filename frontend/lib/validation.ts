@@ -12,5 +12,6 @@ export function validateTokens(value: string): string {
   if (value === '') return 'Required'
   const n = Number(value)
   if (!Number.isInteger(n) || n < 0) return 'Must be a non-negative integer'
+  if (n > 2000000000) return 'Must not exceed 2,000,000,000'
   return ''
 }

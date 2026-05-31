@@ -168,7 +168,7 @@ function CustomerInfoCard({ info }: { info: CustomerInfo }) {
               }}
             >
               ⚠ Quota running low —{' '}
-              {fmt(info.monthlyQuota - info.usedTokens)} tokens remaining
+              {fmt(Math.max(0, info.monthlyQuota - info.usedTokens))} tokens remaining
             </p>
           )}
         </div>
@@ -212,8 +212,14 @@ export function CustomerSwitcher({
     setInfo(null)
     try {
       const res = await fetch(`/api/customers/${id}`)
-      const data: CustomerInfo = await res.json()
-      setInfo(data)
+      if (res.ok) {
+        const data: CustomerInfo = await res.json()
+        setInfo(data)
+      } else {
+        setInfo(null)
+      }
+    } catch {
+      setInfo(null)
     } finally {
       setLoading(false)
     }

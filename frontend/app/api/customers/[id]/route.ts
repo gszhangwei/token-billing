@@ -1,6 +1,6 @@
 export const runtime = 'edge'
 
-import { getCustomerInfo } from '../../../../lib/customers'
+import { getCustomerInfo } from '@/lib/customers'
 
 export function GET(
   _request: Request,

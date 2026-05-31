@@ -3,7 +3,7 @@ export const runtime = 'edge'
 const BACKEND_USAGE_PATH = '/api/usage'
 
 export async function POST(request: Request): Promise<Response> {
-  const backendBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+  const backendBase = process.env.BILLING_BACKEND_URL ?? 'http://localhost:8080'
   const targetUrl = `${backendBase}${BACKEND_USAGE_PATH}`
 
   const body = await request.text()
