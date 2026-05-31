@@ -11,6 +11,8 @@ import org.tw.token_billing.entity.*;
 import org.tw.token_billing.exception.CustomerNotFoundException;
 import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
 import org.tw.token_billing.exception.NoActiveSubscriptionException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.tw.token_billing.metrics.BillingMetrics;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
@@ -48,7 +50,8 @@ class UsageServiceTest {
 
     @BeforeEach
     void setUp() {
-        usageService = new UsageService(customerRepository, subscriptionRepository, billRepository);
+        BillingMetrics billingMetrics = new BillingMetrics(new SimpleMeterRegistry());
+        usageService = new UsageService(customerRepository, subscriptionRepository, billRepository, billingMetrics);
     }
 
     private CustomerSubscription createSubscription(String customerId, int quota, BigDecimal ratePer1k) {

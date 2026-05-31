@@ -2,6 +2,7 @@ package org.tw.token_billing.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.tw.token_billing.dto.BillResponse;
 import org.tw.token_billing.dto.BillResult;
 import org.tw.token_billing.dto.UsageRequest;
@@ -13,6 +14,7 @@ import org.tw.token_billing.exception.CustomerNotFoundException;
 import org.tw.token_billing.exception.IdempotencyKeyMismatchException;
 import org.tw.token_billing.exception.MultipleActiveSubscriptionsException;
 import org.tw.token_billing.exception.NoActiveSubscriptionException;
+import org.tw.token_billing.metrics.BillingMetrics;
 import org.tw.token_billing.repository.BillRepository;
 import org.tw.token_billing.repository.CustomerRepository;
 import org.tw.token_billing.repository.CustomerSubscriptionRepository;
@@ -22,12 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -40,13 +42,16 @@ public class UsageService {
     private final CustomerRepository customerRepository;
     private final CustomerSubscriptionRepository subscriptionRepository;
     private final BillRepository billRepository;
+    private final BillingMetrics billingMetrics;
 
     public UsageService(CustomerRepository customerRepository,
                         CustomerSubscriptionRepository subscriptionRepository,
-                        BillRepository billRepository) {
+                        BillRepository billRepository,
+                        BillingMetrics billingMetrics) {
         this.customerRepository = customerRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.billRepository = billRepository;
+        this.billingMetrics = billingMetrics;
     }
 
     @Transactional
@@ -57,16 +62,26 @@ public class UsageService {
 
     @Transactional
     public BillResult calculateBill(UsageRequest request, String idempotencyKey) {
+        long startMs = System.currentTimeMillis();
+        MDC.put("customerId", request.getCustomerId());
+
         // SRS-F-11 / AC2: Acquire pessimistic lock at the very beginning of the transaction to prevent any race condition
         // on subscription lookup, idempotency lookup, and usage calculations.
-        Customer customer;
+        Optional<Customer> customerOpt;
         try {
-            customer = customerRepository.findByIdForUpdate(request.getCustomerId())
-                .orElseThrow(() -> new CustomerNotFoundException(request.getCustomerId()));
+            customerOpt = customerRepository.findByIdForUpdate(request.getCustomerId());
         } catch (org.springframework.dao.PessimisticLockingFailureException | jakarta.persistence.PessimisticLockException e) {
             log.warn("Lock acquisition timeout for customerId={}", request.getCustomerId());
+            billingMetrics.incrementLockContention();
+            billingMetrics.incrementRequests(request.getCustomerId(), "lock_timeout");
             throw new ConcurrentBillingException(request.getCustomerId(), e);
         }
+
+        if (customerOpt.isEmpty()) {
+            billingMetrics.incrementRequests(request.getCustomerId(), "customer_not_found");
+            throw new CustomerNotFoundException(request.getCustomerId());
+        }
+        Customer customer = customerOpt.get();
 
         // SRS-F-7: active subscription resolution
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -74,10 +89,12 @@ public class UsageService {
             .findAllActiveSubscriptions(request.getCustomerId(), today);
 
         if (subscriptions.isEmpty()) {
+            billingMetrics.incrementRequests(request.getCustomerId(), "no_subscription");
             throw new NoActiveSubscriptionException(request.getCustomerId());
         }
         if (subscriptions.size() > 1) {
             log.error("Multiple active subscriptions for customerId={}", request.getCustomerId());
+            billingMetrics.incrementRequests(request.getCustomerId(), "multiple_subscriptions");
             throw new MultipleActiveSubscriptionsException(request.getCustomerId());
         }
 
@@ -92,8 +109,13 @@ public class UsageService {
                 if (payloadMatches(existing, request)) {
                     log.info("Idempotency replay hit customerId={} keyPrefix={}",
                         request.getCustomerId(), prefix8(idempotencyKey));
-                    return new BillResult(toResponse(existing), true);
+                    billingMetrics.incrementIdempotencyReplay();
+                    billingMetrics.incrementRequests(request.getCustomerId(), "replayed");
+                    BillResult result = new BillResult(toResponse(existing), true);
+                    logBillingRequest(result.body(), request, startMs);
+                    return result;
                 } else {
+                    billingMetrics.incrementRequests(request.getCustomerId(), "idempotency_mismatch");
                     throw new IdempotencyKeyMismatchException(request.getCustomerId(), idempotencyKey);
                 }
             }
@@ -134,7 +156,31 @@ public class UsageService {
         );
         billRepository.save(bill);
 
-        return new BillResult(toResponse(bill), false);
+        if (overageTokens > 0) {
+            billingMetrics.recordOverageCharge(
+                customer.getId(),
+                subscription.getPricingPlan().getId(),
+                charge.doubleValue()
+            );
+        }
+        billingMetrics.incrementRequests(customer.getId(), "success");
+
+        BillResult result = new BillResult(toResponse(bill), false);
+        logBillingRequest(result.body(), request, startMs);
+        return result;
+    }
+
+    private void logBillingRequest(BillResponse bill, UsageRequest request, long startMs) {
+        long durationMs = System.currentTimeMillis() - startMs;
+        log.atInfo()
+            .addKeyValue("requestId", MDC.get("requestId"))
+            .addKeyValue("customerId", bill.getCustomerId())
+            .addKeyValue("promptTokens", request.getPromptTokens())
+            .addKeyValue("completionTokens", request.getCompletionTokens())
+            .addKeyValue("billId", bill.getBillId())
+            .addKeyValue("totalCharge", bill.getTotalCharge())
+            .addKeyValue("durationMs", durationMs)
+            .log("billing request processed");
     }
 
     private boolean payloadMatches(Bill existing, UsageRequest request) {
