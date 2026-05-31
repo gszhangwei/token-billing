@@ -72,6 +72,8 @@ class UsageServiceTest {
     private void mockUsage(CustomerSubscription subscription, long currentMonthUsage) {
         when(customerRepository.existsById(any()))
             .thenReturn(true);
+        when(customerRepository.findByIdForUpdate(any()))
+            .thenReturn(java.util.Optional.of(subscription.getCustomer()));
         when(subscriptionRepository.findAllActiveSubscriptions(any(), any()))
             .thenReturn(List.of(subscription));
         when(billRepository.sumTotalTokensByCustomerIdAndMonthStart(any(), any()))
