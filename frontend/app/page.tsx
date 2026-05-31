@@ -1,6 +1,6 @@
 export const runtime = 'edge'
 
-import { CustomerSwitcher } from '@/components/CustomerSwitcher'
+import { BillingDashboard } from '@/components/BillingDashboard'
 
 export default function Home() {
   return (
@@ -25,33 +25,7 @@ export default function Home() {
         </p>
       </header>
 
-      <CustomerSwitcher />
-
-      <div
-        style={{
-          display: 'grid',
-          gap: '1rem',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        }}
-      >
-        <section className="card card-gradient">
-          <p className="label" style={{ color: 'var(--color-green)', marginBottom: '0.5rem' }}>
-            Submit Usage
-          </p>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-            Submit token usage for billing calculation.
-          </p>
-        </section>
-
-        <section className="card card-gradient">
-          <p className="label" style={{ color: 'var(--color-orange)', marginBottom: '0.5rem' }}>
-            Billing Result
-          </p>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-            View calculated bill and overage charge details.
-          </p>
-        </section>
-      </div>
+      <BillingDashboard />
     </div>
   )
 }
